@@ -5,8 +5,8 @@
 # Dependencies (will be installed during build)
 node_modules
 
-# Local build output (will be generated during build)
-.next
+# Angular build output (will be generated during build)
+dist
 
 # Documentation
 *.md
@@ -33,6 +33,5 @@ Desktop.ini
 .env.*.local
 !.env.example
 
-# Generated files
-next-env.d.ts
+# Testing coverage
 coverage
