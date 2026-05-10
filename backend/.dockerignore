@@ -1,0 +1,28 @@
+# Version control
+.git
+.gitignore
+
+# Documentation
+*.md
+
+# Docker build files
+Dockerfile
+.dockerignore
+
+# Dependencies lock (go.mod is sufficient)
+go.sum
+
+# Build output
+build/
+
+# Development directories
+data/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
