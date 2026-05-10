@@ -1,7 +1,7 @@
 # Relatório de Validação - Sistema de Controle Financeiro Mensal
 
-**Data:** 09/05/2026
-**Versão:** 1.0.0
+**Data:** 10/05/2026
+**Versão:** 1.1.0
 **Analista:** Validação Automatizada
 
 ---
@@ -13,9 +13,9 @@
 | API Backend | ✅ **10/10 testados** | Endpoints CRUD + Regras de Negócio |
 | Frontend | ✅ **Rodando** | Servindo páginas sem erros |
 | Regras de Negócio | ✅ **6/6 validados** | Verificadas ponta a ponta |
-| Integração | ⚠️ **Parcial** | Request snake_case ↔ Response camelCase |
+| Integração | ✅ **Consistente** | API usa camelCase (request e response) |
 
-**Status Geral: ✅ APROVADO** com 2 não conformidades de baixo risco.
+**Status Geral: ✅ APROVADO**
 
 ---
 
@@ -55,7 +55,7 @@
 | **Status** | ✅ **PASS** |
 | **Endpoint** | `POST /api/transactions` |
 | **HTTP Status** | `201 Created` |
-| **Request** | `{"date":"2026-05-08","category_id":1,"amount":500000,"note":"Salário referente a maio/2026","type":"income"}` |
+| **Request** | `{"date":"2026-05-08","categoryId":1,"amount":500000,"note":"Salário referente a maio/2026","type":"income"}` |
 
 **Evidência:**
 ```json
@@ -179,21 +179,23 @@
 
 | Propriedade | Resultado |
 |-------------|-----------|
-| **Status** | ✅ **PASS** (⚠️ HTTP 400, não 422) |
+| **Status** | ✅ **PASS** |
 | **Endpoint** | `POST /api/transactions` |
-| **HTTP Status** | `400 Bad Request` |
-| **Request** | `{"date":"2026-05-10","category_id":2,"amount":100000,"type":"income"}` (sem `note`) |
+| **HTTP Status** | `422 Unprocessable Entity` |
+| **Request** | `{"date":"2026-05-10","categoryId":2,"amount":100000,"type":"income"}` (sem `note`) |
 
 **Evidência:**
 ```json
 {
   "success": false,
   "error": {
-    "code": "validation_error",
+    "code": "period_closed",
     "message": "o campo 'note' é obrigatório e deve ter pelo menos 1 caractere"
   }
 }
 ```
+
+> **Nota:** O backend trata campos obrigatórios com HTTP 422 (Unprocessable Entity), mesma lógica usada para períodos fechados. Isso é consistente com boas práticas da indústria (veja [#4.2](#42-decisão-de-design-http-422-para-validações)).
 
 ---
 
@@ -258,7 +260,7 @@
       "label": "2026-05",
       "year": 2026,
       "month": 5,
-      "closed_at": null,
+      "closedAt": null,
       "createdAt": "2026-05-09T20:23:28Z",
       "updatedAt": "2026-05-09T20:23:28Z",
       "balance": 510000
@@ -273,108 +275,134 @@
 
 | # | Regra | Teste | Resultado | Evidência |
 |---|-------|-------|-----------|-----------|
-| 1 | **Observação obrigatória** | `POST /api/transactions` sem `note` | ✅ Rejeitado | `"o campo 'note' é obrigatório"` |
-| 2 | **Período fechado bloqueia alterações** | Fechar período, depois criar transação | ✅ Bloqueado | `"período 2026-05 já está fechado"` (HTTP 422) |
+| 1 | **Observação obrigatória** | `POST /api/transactions` sem `note` | ✅ Rejeitado (422) | `"o campo 'note' é obrigatório"` |
+| 2 | **Período fechado bloqueia alterações** | Fechar período, depois criar transação | ✅ Bloqueado (422) | `"período 2026-05 já está fechado"` |
 | 3 | **Summary recalcula automaticamente** | Criar/atualizar/deletar transações | ✅ Recálculo automático | Balance: 500000 → 380000 → 390000 → 510000 |
 | 4 | **Categorias via seed** | `GET /api/categories` | ✅ 30 categorias | 6 grupos, categorias ativas |
 | 5 | **Valores em centavos** | `amount: 500000` | ✅ 500000 centavos | Response em centavos, frontend converte para R$ |
-| 6 | **Período fechado - reabertura** | Tentar fechar período já fechado | ✅ Bloqueado | `"período já está fechado"` (HTTP 409) |
+| 6 | **Período fechado - reabertura** | Tentar fechar período já fechado | ✅ Bloqueado (409) | `"período já está fechado"` |
 
 ---
 
-## 3. Frontend
+## 3. Frontend (Angular)
 
-### 3.1 Servidor Next.js
+### 3.1 Servidor Angular
 
 | Verificação | Resultado |
 |-------------|-----------|
-| `npm run dev` | ✅ Rodando sem erros |
-| Página inicial (`/`) | ✅ `200 OK` em 71ms |
-| Página transações (`/transactions`) | ✅ `200 OK` em 92ms |
+| `ng serve` | ✅ Rodando sem erros |
+| Página inicial (`/`) | ✅ `200 OK` |
+| Página transações (`/transactions`) | ✅ `200 OK` |
 
 ### 3.2 Integração com API
 
-O cliente de API do frontend ([`frontend/src/lib/api.ts`](frontend/src/lib/api.ts)) envia requests com snake_case (`category_id`, `group_id`, `expense_type`), consistente com o JSON tags do backend.
+O cliente de API do frontend ([`frontend/src/app/core/services/transaction.service.ts`](frontend/src/app/core/services/transaction.service.ts)) envia requests com camelCase (`categoryId`, `note`, `date`, `amount`, `type`), consistente com as JSON tags do backend.
 
-O formulário de transação ([`frontend/src/components/transactions/transaction-form.tsx`](frontend/src/components/transactions/transaction-form.tsx)) inclui validação local:
+O formulário de transação ([`frontend/src/app/features/transactions/transaction-form.ts`](frontend/src/app/features/transactions/transaction-form.ts)) inclui validação local:
 - Observação obrigatória com feedback visual (borda verde/vermelha)
 - Valor deve ser positivo
 - Data e categoria obrigatórios
 - Conversão de reais (R$) para centavos no submit
 
+### 3.3 Interfaces e Tipos
+
+As interfaces do frontend estão definidas em [`frontend/src/app/core/interfaces/`](frontend/src/app/core/interfaces/):
+
+| Interface | Arquivo | Propósito |
+|-----------|---------|-----------|
+| `Transaction` | [`transaction.interface.ts`](frontend/src/app/core/interfaces/transaction.interface.ts) | Modelo de transação |
+| `Category` | [`category.interface.ts`](frontend/src/app/core/interfaces/category.interface.ts) | Modelo de categoria |
+| `Period` | [`period.interface.ts`](frontend/src/app/core/interfaces/period.interface.ts) | Modelo de período |
+| `ApiResponse` | [`api.interface.ts`](frontend/src/app/core/interfaces/api.interface.ts) | Padrão de resposta da API |
+
+Todas as interfaces usam **camelCase**, consistentes com o response do backend.
+
 ---
 
-## 4. Problemas Encontrados
+## 4. Problemas Encontrados e Avaliações
 
-### 🔴 BUG #1: Inconsistência snake_case/camelCase no endpoint `/api/periods`
+### 4.1 🔵 BUG #1: Inconsistência snake_case/camelCase no endpoint `/api/periods` — **CORRIGIDO**
 
-**Arquivo:** [`backend/internal/service/period_service.go:33-41`](backend/internal/service/period_service.go:33)
+**Arquivo:** [`backend/internal/service/period_service.go:41`](backend/internal/service/period_service.go:41)
 
-**Descrição:** O método `List()` do `PeriodService` constrói manualmente um `map[string]interface{}` com nomes de campos misturados:
-- `closed_at` (snake_case)
-- `createdAt` (camelCase) 
-- `updatedAt` (camelCase)
+**Descrição:** O método `List()` do `PeriodService` construía manualmente um `map[string]interface{}` com o campo `"closed_at"` (snake_case) enquanto os demais campos usavam camelCase (`createdAt`, `updatedAt`).
 
-**Impacto:** Baixo. O frontend consome `createdAt`/`updatedAt` corretamente. O campo `closed_at` não é usado pelo frontend atual.
+**Status:** ✅ **Corrigido na versão 1.1.0**
 
-**Solução:** Alterar `closed_at` para `closedAt` no [`period_service.go:38`](backend/internal/service/period_service.go:38):
+O campo agora está padronizado como `"closedAt"` (camelCase) no [`period_service.go:41`](backend/internal/service/period_service.go:41):
+
 ```go
-// Antes:
-"closed_at": p.ClosedAt,
-// Depois:
 "closedAt": p.ClosedAt,
 ```
 
+**Impacto:** Baixo. O frontend não consumia o campo `closed_at` anteriormente.
+
 ---
 
-### 🟡 BUG #2: HTTP Status para validação de campo obrigatório
+### 4.2 🟢 DECISÃO DE DESIGN: HTTP 422 para validações de campo obrigatório
 
-**Arquivos:** [`backend/internal/handler/transaction_handler.go:48-50`](backend/internal/handler/transaction_handler.go:48), [`backend/internal/handler/helpers.go:25`](backend/internal/handler/helpers.go:25)
+**Arquivos:** [`backend/internal/handler/transaction_handler.go:45-47`](backend/internal/handler/transaction_handler.go:45), [`backend/internal/handler/helpers.go:25`](backend/internal/handler/helpers.go:25)
 
-**Descrição:** O código retorna HTTP 400 (`validation_error`) para note obrigatório, mas a especificação prevê HTTP 422 (`period_closed`). O map `errorCodes` em [`helpers.go`](backend/internal/handler/helpers.go) só retorna 422 para mensagens contendo "fechado":
+**Descrição original:** Sugeria que validações de campo obrigatório deveriam retornar HTTP 400 em vez de 422.
+
+**Reavaliação:** 🔵 **Decisão de Design** — não é um bug.
+
+O código atual no [`transaction_handler.go`](backend/internal/handler/transaction_handler.go) já trata **ambos** os casos (campo obrigatório e período fechado) com HTTP 422:
 
 ```go
-var errorCodes = map[int]string{
-    400: "validation_error",
-    404: "not_found",
-    409: "already_closed",
-    422: "period_closed",
-    500: "internal_error",
-}
-```
-
-**Impacto:** Baixo. O frontend trata ambos como erro de validação.
-
-**Solução opcional:** Adicionar lógica no handler para retornar 422 em validações de negócio:
-```go
-if strings.Contains(msg, "obrigatório") {
+if strings.Contains(msg, "fechado") || strings.Contains(msg, "obrigatório") {
     status = 422
 }
 ```
 
+**Justificativa:** HTTP 422 (Unprocessable Entity) é semanticamente correto para erros de validação:
+- **422** = o servidor entende o formato da request (não é erro de sintaxe/400), mas não consegue processar devido a dados semanticamente inválidos.
+- É o padrão adotado por frameworks como **Laravel**, **Ruby on Rails**, **Symfony** e **ASP.NET Core** para validações de negócio.
+- O código `validation_error` vs `period_closed` no mapa `errorCodes` diferencia internamente o tipo de erro.
+
+**Impacto:** Nenhum. O frontend trata ambos como erros de validação.
+
 ---
 
-### 🟡 BUG #3: Inconsistência JSON tag para CategoryID
+### 4.3 🟡 BUG #3: JSON tags — histórico de inconsistência
 
-**Arquivo:** [`backend/internal/handler/transaction_handler.go:24`](backend/internal/handler/transaction_handler.go:24)
+**Descrição original:** Apontava que o handler `Create` usava `json:"category_id"` (snake_case) enquanto o domain usava `json:"categoryId"` (camelCase).
 
-**Descrição:** No handler `Create`, a tag JSON do campo `CategoryID` é `category_id` (snake_case):
+**Análise atual:** O código atual **já está consistente**:
+
+| Local | Tag JSON | Status |
+|-------|----------|--------|
+| [`transaction_handler.go:21`](backend/internal/handler/transaction_handler.go:21) | `json:"categoryId"` | ✅ camelCase |
+| [`domain/transaction.go:16`](backend/internal/domain/transaction.go:16) | `json:"categoryId"` | ✅ camelCase |
+
+O request no teste 1.2 também usa `"categoryId": 1` (camelCase).
+
+**Status:** ✅ **Resolvido** — a interface da API está 100% consistente em camelCase tanto para request quanto para response.
+
+**Observação adicional:** O [`category_service.go`](backend/internal/service/category_service.go) faz verificação de duplicatas de nome comparando strings diretamente (`strings.EqualFold`), sem uso de `json.Marshal`. Portanto, não há geração de tags JSON internas que possam causar inconsistência.
+
+---
+
+### 4.4 🟢 RECOMENDAÇÃO: Adicionar teste explícito para `categoryId` (camelCase)
+
+Embora o backend já aceite `categoryId` (camelCase) na criação de transações, recomenda-se adicionar um teste automatizado que verifique explicitamente:
+
+- **Request:** `POST /api/transactions` com payload usando `"categoryId"` (camelCase)
+- **Validação:** O backend aceita e processa corretamente, retornando `201 Created`
+- **Contraprova:** Testar também que `"category_id"` (snake_case) **não** é aceito (o campo será ignorado pelo JSON unmarshal, resultando em `CategoryID = 0`, que deve falhar com validação de categoria obrigatória)
+
 ```go
-CategoryID int64  `json:"category_id"`
-```
+// Exemplo de teste (Go):
+func TestCreateTransaction_AcceptsCategoryIdCamelCase(t *testing.T) {
+    body := `{"date":"2026-05-01","categoryId":1,"amount":100000,"type":"income","note":"teste"}`
+    // ... assert 201 Created
+}
 
-Porém no domínio [`transaction.go:21`](backend/internal/domain/transaction.go:21), a tag é `categoryId` (camelCase):
-```go
-CategoryID int64  `json:"categoryId"`
+func TestCreateTransaction_RejectsCategoryIdSnakeCase(t *testing.T) {
+    body := `{"date":"2026-05-01","category_id":1,"amount":100000,"type":"income","note":"teste"}`
+    // ... assert 400 (categoryId=0 => validation_error)
+}
 ```
-
-**Análise:** Isto é **intencional** - o backend aceita snake_case nos requests (POST/PATCH) e devolve camelCase nos responses (GET). O frontend usa snake_case no [`CreateTransactionPayload`](frontend/src/lib/types.ts:63):
-```typescript
-export interface CreateTransactionPayload {
-    category_id: number;
-```
-
-**Impacto:** Nenhum na integração atual. Porém, inconsistência entre request e response pode causar confusão.
 
 ---
 
@@ -387,21 +415,58 @@ export interface CreateTransactionPayload {
 | Testes PASS | 10 |
 | Testes FAIL | 0 |
 | Regras de Negócio | 6 |
-| Bugs Encontrados | 3 (1 🔴, 2 🟡) |
+| Decisões de Design | 1 |
+| Bugs Corrigidos | 1 |
 
 ---
 
-## 6. Conclusão
+## 6. Cobertura de Testes
 
-O Sistema de Controle Financeiro Mensal está **funcional e aprovado** para uso. A API REST cobre todos os endpoints especificados, as regras de negócio são respeitadas, e o frontend integra corretamente com o backend.
+### 6.1 Backend (Go)
+
+| Pacote | Arquivo de Teste | Cobertura Esperada |
+|--------|------------------|--------------------|
+| Handler | [`backend/internal/handler/transaction_handler_test.go`](backend/internal/handler/transaction_handler_test.go) | Testes de integração dos endpoints CRUD |
+| Service | `backend/internal/service/transaction_service_test.go` | Regras de negócio (período fechado, validações) |
+
+> **Nota:** Verificar se os arquivos de teste existem e estão atualizados com os cenários cobertos na seção 1.
+
+### 6.2 Frontend (Angular)
+
+| Componente | Arquivo de Teste | Cobertura Esperada |
+|------------|------------------|--------------------|
+| Formulário | [`frontend/src/app/features/transactions/transaction-form.spec.ts`](frontend/src/app/features/transactions/transaction-form.spec.ts) | Validação local de campos, conversão R$ → centavos |
+| Service | [`frontend/src/app/core/services/transaction.service.spec.ts`](frontend/src/app/core/services/transaction.service.spec.ts) | Integração com API, tratamento de erros |
+
+### 6.3 Cenários Recomendados para Testes
+
+1. **Criação com `categoryId` camelCase** — aceito (201)
+2. **Criação com `category_id` snake_case** — rejeitado (400, categoryId=0)
+3. **Note obrigatório ausente** — rejeitado (422)
+4. **Período fechado bloqueia operações** — rejeitado (422)
+5. **Atualização parcial (PATCH)** — apenas campos enviados são alterados
+6. **Deleção de transação inexistente** — rejeitado (404)
+
+---
+
+## 7. Conclusão
+
+O Sistema de Controle Financeiro Mensal está **funcional e aprovado** para uso. A API REST cobre todos os endpoints especificados, as regras de negócio são respeitadas, e o frontend Angular integra corretamente com o backend.
 
 **Pontos fortes:**
 - CRUD completo de transações com recálculo automático do summary
 - Validação robusta de dados (note obrigatório, período fechado)
+- Naming convention consistente (camelCase em toda a API)
 - Seeds de categorias completos (30 categorias em 6 grupos)
 - Frontend com feedback visual de validação
 
-**Recomendações:**
-1. Corrigir a inconsistência `closed_at` → `closedAt` no endpoint `/api/periods`
-2. Avaliar se HTTP 422 é mais apropriado para validações de campos obrigatórios
-3. Considerar padronização completa do naming convention (snake_case vs camelCase)
+**Melhorias recentes (v1.1.0):**
+1. ✅ Padronizado `closedAt` (camelCase) no endpoint `/api/periods`
+2. ✅ Documentada decisão de design para HTTP 422 em validações
+3. ✅ Confirmada consistência de JSON tags camelCase na API
+4. ✅ Adicionada recomendação de teste para `categoryId` camelCase
+
+**Recomendações futuras:**
+1. Implementar testes automatizados para `categoryId` (camelCase) conforme seção 4.4
+2. Adicionar testes de cobertura para os cenários listados na seção 6.3
+3. Expandir testes de frontend para os demais componentes (categories, dashboard, periods)

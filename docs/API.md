@@ -22,6 +22,8 @@
 4. [Summary](#4-summary)
    - [Obter Resumo Mensal](#41-obter-resumo-mensal)
 5. [Tratamento de Erros](#5-tratamento-de-erros)
+6. [Exemplos de Uso (curl)](#6-exemplos-de-uso-curl)
+7. [Estrutura de Rotas (Go Router)](#7-estrutura-de-rotas-go-router)
 
 ---
 
@@ -29,7 +31,7 @@
 
 ### 1.1 Criar Transação
 
-Cria um novo lançamento financeiro. O período é determinado automaticamente pela data informada.
+Cria um novo lançamento financeiro. O período é criado automaticamente ao inserir a primeira transação do mês.
 
 **Endpoint**: `POST /api/transactions`
 
@@ -57,48 +59,59 @@ Cria um novo lançamento financeiro. O período é determinado automaticamente p
 
 ```json
 {
-  "transaction": {
-    "id": 42,
-    "period_id": 5,
-    "category_id": 1,
-    "date": "2026-05-10",
-    "amount": 150000,
-    "type": "expense",
-    "note": "Aluguel referente a maio/2026",
-    "created_at": "2026-05-09T22:00:00Z",
-    "updated_at": "2026-05-09T22:00:00Z",
-    "category_name": "Aluguel",
-    "period_label": "2026-05"
-  },
-  "summary": {
-    "id": 3,
-    "period_id": 5,
-    "revenue_total": 0,
-    "investment_total": 0,
-    "fixed_expense_total": 150000,
-    "variable_expense_total": 0,
-    "extra_expense_total": 0,
-    "additional_expense_total": 0,
-    "balance": -150000
+  "success": true,
+  "data": {
+    "transaction": {
+      "id": 42,
+      "period_id": 5,
+      "category_id": 1,
+      "date": "2026-05-10",
+      "amount": 150000,
+      "type": "expense",
+      "note": "Aluguel referente a maio/2026",
+      "created_at": "2026-05-09T22:00:00Z",
+      "updated_at": "2026-05-09T22:00:00Z",
+      "category_name": "Aluguel",
+      "period_label": "2026-05"
+    },
+    "summary": {
+      "id": 1,
+      "period_id": 5,
+      "revenue_total": 0,
+      "investment_total": 0,
+      "fixed_expense_total": 150000,
+      "variable_expense_total": 0,
+      "extra_expense_total": 0,
+      "additional_expense_total": 0,
+      "balance": -150000,
+      "created_at": "2026-05-09T22:00:00Z",
+      "updated_at": "2026-05-09T22:00:00Z"
+    }
   }
 }
 ```
 
-**Response** `400 Bad Request`:
+**Response** `422 Unprocessable Entity` (validação):
 
 ```json
 {
-  "error": "validation_error",
-  "message": "O campo 'note' é obrigatório e deve ter pelo menos 1 caractere"
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "O campo 'note' é obrigatório e deve ter pelo menos 1 caractere"
+  }
 }
 ```
 
-**Response** `422 Unprocessable Entity`:
+**Response** `422 Unprocessable Entity` (período fechado):
 
 ```json
 {
-  "error": "period_closed",
-  "message": "O período 2026-05 já está fechado. Não é possível adicionar transações."
+  "success": false,
+  "error": {
+    "code": "PERIOD_CLOSED",
+    "message": "O período 2026-05 já está fechado. Não é possível adicionar transações."
+  }
 }
 ```
 
@@ -120,36 +133,39 @@ Retorna transações filtradas por período.
 
 ```json
 {
-  "transactions": [
-    {
-      "id": 42,
-      "period_id": 5,
-      "category_id": 1,
-      "date": "2026-05-10",
-      "amount": 150000,
-      "type": "expense",
-      "note": "Aluguel referente a maio/2026",
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-09T22:00:00Z",
-      "category_name": "Aluguel",
-      "period_label": "2026-05"
-    },
-    {
-      "id": 43,
-      "period_id": 5,
-      "category_id": 2,
-      "date": "2026-05-11",
-      "amount": 45000,
-      "type": "expense",
-      "note": "Conta de luz",
-      "created_at": "2026-05-10T08:30:00Z",
-      "updated_at": "2026-05-10T08:30:00Z",
-      "category_name": "Energia Elétrica",
-      "period_label": "2026-05"
-    }
-  ],
-  "total": 2,
-  "period": "2026-05"
+  "success": true,
+  "data": {
+    "transactions": [
+      {
+        "id": 42,
+        "period_id": 5,
+        "category_id": 1,
+        "date": "2026-05-10",
+        "amount": 150000,
+        "type": "expense",
+        "note": "Aluguel referente a maio/2026",
+        "created_at": "2026-05-09T22:00:00Z",
+        "updated_at": "2026-05-09T22:00:00Z",
+        "category_name": "Aluguel",
+        "period_label": "2026-05"
+      },
+      {
+        "id": 43,
+        "period_id": 5,
+        "category_id": 2,
+        "date": "2026-05-11",
+        "amount": 45000,
+        "type": "expense",
+        "note": "Conta de luz",
+        "created_at": "2026-05-10T08:30:00Z",
+        "updated_at": "2026-05-10T08:30:00Z",
+        "category_name": "Energia Elétrica",
+        "period_label": "2026-05"
+      }
+    ],
+    "total": 2,
+    "period": "2026-05"
+  }
 }
 ```
 
@@ -157,8 +173,11 @@ Retorna transações filtradas por período.
 
 ```json
 {
-  "error": "validation_error",
-  "message": "Formato de período inválido. Use YYYY-MM (ex: 2026-05)"
+  "success": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Formato de período inválido. Use YYYY-MM (ex: 2026-05)"
+  }
 }
 ```
 
@@ -170,43 +189,58 @@ Atualiza parcialmente uma transação existente. O período é recalculado se a 
 
 **Endpoint**: `PATCH /api/transactions/:id`
 
-**Request Body** (todos os campos opcionais):
+**Request Body** (todos os campos são opcionais):
 
 ```json
 {
+  "type": "income",
   "category_id": 3,
   "amount": 160000,
+  "date": "2026-05-15",
   "note": "Aluguel ajustado - maio/2026"
 }
 ```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `type` | string | não | `income`, `investment` ou `expense` |
+| `category_id` | integer | não | ID da categoria |
+| `amount` | integer | não | Valor em centavos |
+| `date` | string | não | Data ISO 8601 (YYYY-MM-DD) |
+| `note` | string | não | Descrição/observação |
 
 **Response** `200 OK`:
 
 ```json
 {
-  "transaction": {
-    "id": 42,
-    "period_id": 5,
-    "category_id": 3,
-    "date": "2026-05-10",
-    "amount": 160000,
-    "type": "expense",
-    "note": "Aluguel ajustado - maio/2026",
-    "created_at": "2026-05-09T22:00:00Z",
-    "updated_at": "2026-05-10T10:00:00Z",
-    "category_name": "Aluguel + Condomínio",
-    "period_label": "2026-05"
-  },
-  "summary": {
-    "id": 3,
-    "period_id": 5,
-    "revenue_total": 0,
-    "investment_total": 0,
-    "fixed_expense_total": 160000,
-    "variable_expense_total": 0,
-    "extra_expense_total": 0,
-    "additional_expense_total": 0,
-    "balance": -160000
+  "success": true,
+  "data": {
+    "transaction": {
+      "id": 42,
+      "period_id": 5,
+      "category_id": 3,
+      "date": "2026-05-15",
+      "amount": 160000,
+      "type": "income",
+      "note": "Aluguel ajustado - maio/2026",
+      "created_at": "2026-05-09T22:00:00Z",
+      "updated_at": "2026-05-10T10:00:00Z",
+      "category_name": "Aluguel + Condomínio",
+      "period_label": "2026-05"
+    },
+    "summary": {
+      "id": 1,
+      "period_id": 5,
+      "revenue_total": 160000,
+      "investment_total": 0,
+      "fixed_expense_total": 0,
+      "variable_expense_total": 0,
+      "extra_expense_total": 0,
+      "additional_expense_total": 0,
+      "balance": 160000,
+      "created_at": "2026-05-09T22:00:00Z",
+      "updated_at": "2026-05-10T10:00:00Z"
+    }
   }
 }
 ```
@@ -215,8 +249,23 @@ Atualiza parcialmente uma transação existente. O período é recalculado se a 
 
 ```json
 {
-  "error": "not_found",
-  "message": "Transação com ID 999 não encontrada"
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Transação com ID 999 não encontrada"
+  }
+}
+```
+
+**Response** `409 Conflict` (período fechado):
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "PERIOD_CLOSED",
+    "message": "O período 2026-05 já está fechado. Não é possível alterar transações."
+  }
 }
 ```
 
@@ -232,17 +281,22 @@ Remove uma transação e recalcula o summary do período.
 
 ```json
 {
-  "message": "Transação excluída com sucesso",
-  "summary": {
-    "id": 3,
-    "period_id": 5,
-    "revenue_total": 0,
-    "investment_total": 0,
-    "fixed_expense_total": 0,
-    "variable_expense_total": 0,
-    "extra_expense_total": 0,
-    "additional_expense_total": 0,
-    "balance": 0
+  "success": true,
+  "data": {
+    "message": "Transação excluída com sucesso",
+    "summary": {
+      "id": 1,
+      "period_id": 5,
+      "revenue_total": 0,
+      "investment_total": 0,
+      "fixed_expense_total": 0,
+      "variable_expense_total": 0,
+      "extra_expense_total": 0,
+      "additional_expense_total": 0,
+      "balance": 0,
+      "created_at": "2026-05-09T22:00:00Z",
+      "updated_at": "2026-05-10T10:00:00Z"
+    }
   }
 }
 ```
@@ -251,8 +305,23 @@ Remove uma transação e recalcula o summary do período.
 
 ```json
 {
-  "error": "not_found",
-  "message": "Transação com ID 999 não encontrada"
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Transação com ID 999 não encontrada"
+  }
+}
+```
+
+**Response** `422 Unprocessable Entity` (período fechado):
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "PERIOD_CLOSED",
+    "message": "O período 2026-05 já está fechado. Não é possível excluir transações."
+  }
 }
 ```
 
@@ -270,54 +339,57 @@ Retorna todas as categorias ativas e inativas, agrupadas por grupo.
 
 ```json
 {
-  "groups": [
-    {
-      "id": 1,
-      "name": "Receitas",
-      "type": "revenue",
-      "sort_order": 1,
-      "categories": [
-        {
-          "id": 1,
-          "group_id": 1,
-          "name": "Salário",
-          "expense_type": null,
-          "sort_order": 1,
-          "active": true,
-          "created_at": "2026-01-01T00:00:00Z",
-          "updated_at": "2026-01-01T00:00:00Z"
-        },
-        {
-          "id": 2,
-          "group_id": 1,
-          "name": "Freelance",
-          "expense_type": null,
-          "sort_order": 2,
-          "active": true,
-          "created_at": "2026-01-01T00:00:00Z",
-          "updated_at": "2026-01-01T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "name": "Despesas Fixas",
-      "type": "expense",
-      "sort_order": 2,
-      "categories": [
-        {
-          "id": 3,
-          "group_id": 2,
-          "name": "Aluguel",
-          "expense_type": "fixed",
-          "sort_order": 1,
-          "active": true,
-          "created_at": "2026-01-01T00:00:00Z",
-          "updated_at": "2026-01-01T00:00:00Z"
-        }
-      ]
-    }
-  ]
+  "success": true,
+  "data": {
+    "groups": [
+      {
+        "id": 1,
+        "name": "Receitas",
+        "type": "revenue",
+        "sort_order": 1,
+        "categories": [
+          {
+            "id": 1,
+            "group_id": 1,
+            "name": "Salário",
+            "expense_type": null,
+            "sort_order": 1,
+            "active": true,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": 2,
+            "group_id": 1,
+            "name": "Freelance",
+            "expense_type": null,
+            "sort_order": 2,
+            "active": true,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Despesas Fixas",
+        "type": "expense",
+        "sort_order": 2,
+        "categories": [
+          {
+            "id": 3,
+            "group_id": 2,
+            "name": "Aluguel",
+            "expense_type": "fixed",
+            "sort_order": 1,
+            "active": true,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -351,14 +423,17 @@ Cria uma nova categoria dentro de um grupo existente.
 
 ```json
 {
-  "id": 10,
-  "group_id": 2,
-  "name": "Internet",
-  "expense_type": "fixed",
-  "sort_order": 3,
-  "active": true,
-  "created_at": "2026-05-09T22:00:00Z",
-  "updated_at": "2026-05-09T22:00:00Z"
+  "success": true,
+  "data": {
+    "id": 10,
+    "group_id": 2,
+    "name": "Internet",
+    "expense_type": "fixed",
+    "sort_order": 3,
+    "active": true,
+    "created_at": "2026-05-09T22:00:00Z",
+    "updated_at": "2026-05-09T22:00:00Z"
+  }
 }
 ```
 
@@ -366,8 +441,11 @@ Cria uma nova categoria dentro de um grupo existente.
 
 ```json
 {
-  "error": "validation_error",
-  "message": "expense_type é obrigatório para categorias do tipo 'expense'"
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "expense_type é obrigatório para categorias do tipo 'expense'"
+  }
 }
 ```
 
@@ -392,14 +470,29 @@ Atualiza parcialmente uma categoria.
 
 ```json
 {
-  "id": 10,
-  "group_id": 2,
-  "name": "Internet Fibra",
-  "expense_type": "fixed",
-  "sort_order": 3,
-  "active": false,
-  "created_at": "2026-05-09T22:00:00Z",
-  "updated_at": "2026-05-10T10:00:00Z"
+  "success": true,
+  "data": {
+    "id": 10,
+    "group_id": 2,
+    "name": "Internet Fibra",
+    "expense_type": "fixed",
+    "sort_order": 3,
+    "active": false,
+    "created_at": "2026-05-09T22:00:00Z",
+    "updated_at": "2026-05-10T10:00:00Z"
+  }
+}
+```
+
+**Response** `404 Not Found`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Categoria com ID 999 não encontrada"
+  }
 }
 ```
 
@@ -417,28 +510,43 @@ Retorna todos os meses que possuem lançamentos, ordenados do mais recente para 
 
 ```json
 {
-  "periods": [
-    {
-      "id": 5,
-      "year": 2026,
-      "month": 5,
-      "label": "2026-05",
-      "closed_at": null,
-      "transaction_count": 12,
-      "created_at": "2026-05-01T00:00:00Z",
-      "updated_at": "2026-05-10T10:00:00Z"
-    },
-    {
-      "id": 4,
-      "year": 2026,
-      "month": 4,
-      "label": "2026-04",
-      "closed_at": "2026-05-01T00:00:00Z",
-      "transaction_count": 15,
-      "created_at": "2026-04-01T00:00:00Z",
-      "updated_at": "2026-05-01T00:00:00Z"
-    }
-  ]
+  "success": true,
+  "data": {
+    "periods": [
+      {
+        "id": 5,
+        "year": 2026,
+        "month": 5,
+        "label": "2026-05",
+        "closed_at": null,
+        "balance": 350000,
+        "revenue_total": 500000,
+        "investment_total": 0,
+        "fixed_expense_total": 150000,
+        "variable_expense_total": 0,
+        "extra_expense_total": 0,
+        "additional_expense_total": 0,
+        "created_at": "2026-05-01T00:00:00Z",
+        "updated_at": "2026-05-10T10:00:00Z"
+      },
+      {
+        "id": 4,
+        "year": 2026,
+        "month": 4,
+        "label": "2026-04",
+        "closed_at": "2026-05-01T00:00:00Z",
+        "balance": 270000,
+        "revenue_total": 500000,
+        "investment_total": 100000,
+        "fixed_expense_total": 180000,
+        "variable_expense_total": 100000,
+        "extra_expense_total": 50000,
+        "additional_expense_total": 0,
+        "created_at": "2026-04-01T00:00:00Z",
+        "updated_at": "2026-05-01T00:00:00Z"
+      }
+    ]
+  }
 }
 ```
 
@@ -468,18 +576,17 @@ Fecha um período mensal, impedindo novas alterações. Todas as transações ex
 
 ```json
 {
-  "message": "Período 2026-04 fechado com sucesso",
-  "period": {
-    "id": 4,
-    "year": 2026,
-    "month": 4,
-    "label": "2026-04",
-    "closed_at": "2026-05-09T22:00:00Z",
-    "expected_revenue": 850000,
-    "actual_revenue": 850000,
-    "total_expenses": 480000,
-    "total_investments": 100000,
-    "balance": 270000
+  "success": true,
+  "data": {
+    "message": "Período fechado com sucesso",
+    "period": {
+      "id": 4,
+      "year": 2026,
+      "month": 4,
+      "closed_at": "2026-05-09T22:00:00Z",
+      "created_at": "2026-04-01T00:00:00Z",
+      "updated_at": "2026-05-09T22:00:00Z"
+    }
   }
 }
 ```
@@ -488,8 +595,11 @@ Fecha um período mensal, impedindo novas alterações. Todas as transações ex
 
 ```json
 {
-  "error": "not_found",
-  "message": "Nenhuma transação encontrada para o período 2026-04. Crie ao menos uma transação antes de fechar o período."
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Nenhuma transação encontrada para o período 2026-04. Crie ao menos uma transação antes de fechar o período."
+  }
 }
 ```
 
@@ -497,8 +607,11 @@ Fecha um período mensal, impedindo novas alterações. Todas as transações ex
 
 ```json
 {
-  "error": "already_closed",
-  "message": "O período 2026-04 já está fechado desde 2026-05-01T00:00:00Z"
+  "success": false,
+  "error": {
+    "code": "CONFLICT",
+    "message": "O período 2026-04 já está fechado desde 2026-05-01T00:00:00Z"
+  }
 }
 ```
 
@@ -522,95 +635,22 @@ Retorna o resumo financeiro consolidado de um mês específico.
 
 ```json
 {
-  "period": "2026-05",
-  "period_id": 5,
-  "closed": false,
-  "revenue": {
-    "total": 500000,
-    "categories": [
-      {
-        "category_id": 1,
-        "category_name": "Salário",
-        "amount": 500000
-      }
-    ],
-    "count": 1
-  },
-  "investments": {
-    "total": 200000,
-    "categories": [
-      {
-        "category_id": 4,
-        "category_name": "Ações",
-        "amount": 150000
-      },
-      {
-        "category_id": 5,
-        "category_name": "Tesouro Direto",
-        "amount": 50000
-      }
-    ],
-    "count": 2
-  },
-  "expenses": {
-    "total": 310000,
-    "fixed": {
-      "total": 150000,
-      "categories": [
-        {
-          "category_id": 6,
-          "category_name": "Aluguel",
-          "amount": 150000
-        }
-      ],
-      "count": 1
+  "success": true,
+  "data": {
+    "summary": {
+      "id": 1,
+      "period_id": 5,
+      "revenue_total": 500000,
+      "investment_total": 200000,
+      "fixed_expense_total": 150000,
+      "variable_expense_total": 120000,
+      "extra_expense_total": 40000,
+      "additional_expense_total": 0,
+      "balance": 390000,
+      "created_at": "2026-05-01T00:00:00Z",
+      "updated_at": "2026-05-10T10:00:00Z"
     },
-    "variable": {
-      "total": 120000,
-      "categories": [
-        {
-          "category_id": 7,
-          "category_name": "Supermercado",
-          "amount": 80000
-        },
-        {
-          "category_id": 8,
-          "category_name": "Transporte",
-          "amount": 40000
-        }
-      ],
-      "count": 2
-    },
-    "extra": {
-      "total": 40000,
-      "categories": [
-        {
-          "category_id": 9,
-          "category_name": "Restaurante",
-          "amount": 40000
-        }
-      ],
-      "count": 1
-    },
-    "additional": {
-      "total": 0,
-      "categories": [],
-      "count": 0
-    }
-  },
-  "balance": -10000,
-  "summary": {
-    "id": 3,
-    "period_id": 5,
-    "revenue_total": 500000,
-    "investment_total": 200000,
-    "fixed_expense_total": 150000,
-    "variable_expense_total": 120000,
-    "extra_expense_total": 40000,
-    "additional_expense_total": 0,
-    "balance": -10000,
-    "created_at": "2026-05-09T22:00:00Z",
-    "updated_at": "2026-05-09T22:00:00Z"
+    "period": "2026-05"
   }
 }
 ```
@@ -621,6 +661,30 @@ Retorna o resumo financeiro consolidado de um mês específico.
 balance = revenue_total + investment_total - fixed_expense_total - variable_expense_total - extra_expense_total - additional_expense_total
 ```
 
+**Response** `400 Bad Request` (período inválido):
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Formato de período inválido. Use YYYY-MM (ex: 2026-05)"
+  }
+}
+```
+
+**Response** `500 Internal Server Error`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "Erro ao buscar período: ..."
+  }
+}
+```
+
 ---
 
 ## 5. Tratamento de Erros
@@ -629,8 +693,11 @@ Todos os endpoints seguem o mesmo formato de erro:
 
 ```json
 {
-  "error": "error_code",
-  "message": "Descrição legível do erro"
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Descrição legível do erro"
+  }
 }
 ```
 
@@ -638,11 +705,12 @@ Todos os endpoints seguem o mesmo formato de erro:
 
 | Código | HTTP Status | Significado |
 |--------|-------------|-------------|
-| `validation_error` | 400 | Dados inválidos (campos obrigatórios, formato incorreto) |
-| `not_found` | 404 | Recurso não encontrado |
-| `period_closed` | 422 | Período já está fechado |
-| `already_closed` | 409 | Tentativa de fechar período já fechado |
-| `internal_error` | 500 | Erro interno do servidor |
+| `VALIDATION_ERROR` | 422 | Erro de validação de campos (campos obrigatórios, formato incorreto) |
+| `NOT_FOUND` | 404 | Recurso não encontrado |
+| `CONFLICT` | 409 | Conflito (ex: período já fechado, duplicata) |
+| `PERIOD_CLOSED` | 409 | Tentativa de modificar um período já fechado |
+| `INVALID_REQUEST` | 400 | Requisição mal formatada (JSON inválido, parâmetros ausentes) |
+| `INTERNAL_ERROR` | 500 | Erro interno do servidor |
 
 ### Validações por Campo
 
@@ -663,7 +731,9 @@ Todos os endpoints seguem o mesmo formato de erro:
 
 ## 6. Exemplos de Uso (curl)
 
-### Criar uma transação
+### Cenários de Sucesso
+
+#### Criar uma transação
 
 ```bash
 curl -X POST http://localhost:8080/api/transactions \
@@ -677,24 +747,109 @@ curl -X POST http://localhost:8080/api/transactions \
   }'
 ```
 
-### Listar transações do mês
+#### Listar transações do mês
 
 ```bash
 curl "http://localhost:8080/api/transactions?period=2026-05"
 ```
 
-### Obter resumo do mês
+#### Obter resumo do mês
 
 ```bash
 curl "http://localhost:8080/api/summary?period=2026-05"
 ```
 
-### Fechar um mês
+#### Fechar um mês
 
 ```bash
 curl -X POST http://localhost:8080/api/periods/close \
   -H "Content-Type: application/json" \
   -d '{"year": 2026, "month": 4}'
+```
+
+### Cenários de Erro
+
+#### 422 - Validação (campo obrigatório ausente)
+
+```bash
+curl -X POST http://localhost:8080/api/transactions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category_id": 1,
+    "date": "2026-05-10",
+    "amount": 500000,
+    "type": "income"
+  }'
+```
+
+Resposta esperada: `422 Unprocessable Entity`
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "O campo 'note' é obrigatório e deve ter pelo menos 1 caractere"
+  }
+}
+```
+
+#### 404 - Recurso não encontrado
+
+```bash
+curl -X PATCH http://localhost:8080/api/transactions/999 \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 100000}'
+```
+
+Resposta esperada: `404 Not Found`
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Transação com ID 999 não encontrada"
+  }
+}
+```
+
+#### 409 - Período fechado
+
+```bash
+curl -X POST http://localhost:8080/api/periods/close \
+  -H "Content-Type: application/json" \
+  -d '{"year": 2026, "month": 4}'
+```
+
+Resposta esperada (se o período já estiver fechado): `409 Conflict`
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CONFLICT",
+    "message": "O período 2026-04 já está fechado desde 2026-05-01T00:00:00Z"
+  }
+}
+```
+
+#### 500 - Erro interno do servidor
+
+```bash
+curl "http://localhost:8080/api/categories"
+```
+
+Em caso de falha no banco de dados, resposta: `500 Internal Server Error`
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "Erro ao listar categorias: ..."
+  }
+}
 ```
 
 ---
@@ -722,3 +877,12 @@ mux.HandleFunc("GET /api/transactions", h.transactionHandler.List)
 mux.HandleFunc("PATCH /api/transactions/{id}", h.transactionHandler.Update)
 mux.HandleFunc("DELETE /api/transactions/{id}", h.transactionHandler.Delete)
 ```
+
+---
+
+## Notas Importantes
+
+- **Criação automática de períodos**: Períodos (meses) são criados automaticamente pelo backend ao inserir a primeira transação de um determinado mês/ano. Não existe um endpoint `POST /api/periods` para criação manual de períodos.
+- **Valores monetários**: Todos os valores são expressos em **centavos** (int64). Exemplo: R$ 1.500,00 → `150000`.
+- **Datas**: O formato de data utilizado é `YYYY-MM-DD` (ISO 8601).
+- **Fechamento de período**: Uma vez que um período é fechado (`POST /api/periods/close`), nenhuma transação pode ser criada, alterada ou excluída naquele período.

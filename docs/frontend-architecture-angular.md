@@ -10,9 +10,10 @@
 6. [Camada de Serviços (Services)](#6-camada-de-serviços-services)
 7. [Componentes e Funcionalidades](#7-componentes-e-funcionalidades)
 8. [Roteamento com Lazy Loading](#8-roteamento-com-lazy-loading)
-9. [Configuração do Tailwind CSS](#9-configuração-do-tailwind-css)
-10. [Fluxo de Dados e Exemplos](#10-fluxo-de-dados-e-exemplos)
-11. [Plano de Implementação (TODO)](#11-plano-de-implementação-todo)
+9. [Configuração do App (Zoneless / Change Detection)](#9-configuração-do-app-zoneless--change-detection)
+10. [Configuração do Tailwind CSS](#10-configuração-do-tailwind-css)
+11. [Fluxo de Dados e Exemplos](#11-fluxo-de-dados-e-exemplos)
+12. [Plano de Implementação (TODO)](#12-plano-de-implementação-todo)
 
 ---
 
@@ -23,7 +24,7 @@
 | Framework     | Angular (Standalone)      | 17+           |
 | Linguagem     | TypeScript                | 5.x           |
 | Estilização   | Tailwind CSS              | 3.x           |
-| Ícones        | Lucide Icons (via ng-lucide) | última      |
+| Ícones        | SVG inline                | —             |
 | Formulários   | Reactive Forms (nativo)   | —             |
 | HTTP          | Angular HttpClient        | —             |
 | Build         | Angular CLI               | 17+           |
@@ -39,14 +40,14 @@
 
 Cada serviço tem **uma única responsabilidade**:
 
-| Serviço               | Responsabilidade                          |
-|-----------------------|-------------------------------------------|
-| `CategoryService`     | Operações CRUD de categorias/grupos       |
-| `TransactionService`  | Operações CRUD de transações              |
-| `PeriodService`       | Listagem e fechamento de períodos         |
-| `SummaryService`      | Consulta de resumo mensal                 |
-| `CurrencyService`     | Formatação de valores (centavos → R$)     |
-| `PeriodNavigationService` | Estado do período selecionado (sessão) |
+| Serviço                    | Responsabilidade                          |
+|----------------------------|-------------------------------------------|
+| `CategoryService`          | Operações CRUD de categorias/grupos       |
+| `TransactionService`       | Operações CRUD de transações              |
+| `PeriodService`            | Listagem e fechamento de períodos         |
+| `SummaryService`           | Consulta de resumo mensal                 |
+| `CurrencyUtils`            | Formatação de valores (centavos → R$)     |
+| `PeriodNavigationService`  | Estado do período selecionado (sessão)    |
 
 ### OCP — Open/Closed Principle
 
@@ -84,91 +85,76 @@ frontend/
 │   ├── app/
 │   │   ├── app.config.ts              // ApplicationConfig com providers
 │   │   ├── app.routes.ts              // Rotas principais (lazy)
-│   │   ├── app.component.ts           // Root component
+│   │   ├── app.ts                     // Root component
+│   │   ├── app.html                   // Root template
+│   │   ├── app.scss                   // Root styles
 │   │   │
 │   │   ├── core/                      // Singleton, providers raiz
 │   │   │   ├── interfaces/            // Modelos/domínios
+│   │   │   │   ├── api.interface.ts
 │   │   │   │   ├── category.interface.ts
 │   │   │   │   ├── transaction.interface.ts
 │   │   │   │   ├── period.interface.ts
-│   │   │   │   ├── summary.interface.ts
-│   │   │   │   └── api-response.interface.ts
+│   │   │   │   └── summary.interface.ts
 │   │   │   │
 │   │   │   ├── services/              // Serviços HTTP abstratos
+│   │   │   │   ├── base-api.service.ts
 │   │   │   │   ├── category.service.ts
 │   │   │   │   ├── transaction.service.ts
 │   │   │   │   ├── period.service.ts
-│   │   │   │   └── summary.service.ts
+│   │   │   │   ├── summary.service.ts
+│   │   │   │   └── period-navigation.service.ts
 │   │   │   │
 │   │   │   ├── utils/                 // Utilitários
 │   │   │   │   ├── currency.utils.ts  // Centavos ↔ R$
 │   │   │   │   ├── date.utils.ts      // Formatação de data pt-BR
-│   │   │   │   └── period.utils.ts    // Manipulação de período YYYY-MM
+│   │   │   │   └── index.ts
+│   │   │   │
+│   │   │   ├── interceptors/          // Interceptores HTTP
+│   │   │   │   └── api-error.interceptor.ts
 │   │   │   │
 │   │   │   └── layouts/               // Layouts compartilhados
-│   │   │       ├── sidebar.component.ts
-│   │   │       └── main-layout.component.ts
+│   │   │       └── main-layout.ts     // Sidebar inline
 │   │   │
 │   │   ├── features/                  // Módulos de funcionalidade (lazy)
-│   │   │   ├── dashboard/             // Página inicial
-│   │   │   │   ├── dashboard.component.ts
-│   │   │   │   ├── dashboard.routes.ts
-│   │   │   │   └── components/
-│   │   │   │       ├── balance-card.component.ts
-│   │   │   │       ├── summary-cards.component.ts
-│   │   │   │       └── recent-transactions.component.ts
+│   │   │   ├── dashboard/             // Dashboard + Summary
+│   │   │   │   ├── dashboard.ts
+│   │   │   │   └── .gitkeep
 │   │   │   │
 │   │   │   ├── transactions/          // CRUD transações
-│   │   │   │   ├── transactions.component.ts        // Lista
-│   │   │   │   ├── transaction-form.component.ts    // Formulário
-│   │   │   │   ├── transactions.routes.ts
-│   │   │   │   └── components/
-│   │   │   │       ├── transaction-table.component.ts
-│   │   │   │       ├── transaction-row.component.ts
-│   │   │   │       └── period-filter.component.ts
+│   │   │   │   ├── transactions-list.ts       // Lista
+│   │   │   │   ├── transaction-form.ts        // Formulário
+│   │   │   │   └── .gitkeep
 │   │   │   │
 │   │   │   ├── categories/            // Gestão de categorias
-│   │   │   │   ├── categories.component.ts
-│   │   │   │   ├── category-form.component.ts
-│   │   │   │   ├── categories.routes.ts
-│   │   │   │   └── components/
-│   │   │   │       └── category-group.component.ts
+│   │   │   │   ├── categories.ts
+│   │   │   │   └── .gitkeep
 │   │   │   │
-│   │   │   ├── periods/               // Fechamento de períodos
-│   │   │   │   ├── periods.component.ts
-│   │   │   │   └── periods.routes.ts
-│   │   │   │
-│   │   │   └── summary/               // Resumo mensal detalhado
-│   │   │       ├── summary.component.ts
-│   │   │       └── summary.routes.ts
+│   │   │   └── periods/               // Fechamento de períodos
+│   │   │       ├── periods.ts
+│   │   │       └── .gitkeep
 │   │   │
 │   │   └── shared/                    // Componentes reutilizáveis
 │   │       ├── components/
-│   │       │   ├── confirm-dialog.component.ts
-│   │       │   ├── empty-state.component.ts
-│   │       │   ├── loading-spinner.component.ts
-│   │       │   └── page-header.component.ts
+│   │       │   ├── confirm-dialog.ts
+│   │       │   ├── empty-state.ts
+│   │       │   ├── error-alert.ts
+│   │       │   ├── loading-spinner.ts
+│   │       │   └── page-header.ts
 │   │       └── pipes/
-│   │           ├── currency.pipe.ts   // R$ 1.500,00
-│   │           └── date.pipe.ts       // 10 de maio de 2026
-│   │
-│   ├── assets/
-│   │   └── .gitkeep
-│   │
-│   ├── styles/
-│   │   └── tailwind.css              // Diretivas Tailwind
+│   │           └── currency.pipe.ts   // R$ 1.500,00 (CurrencyBRLPipe)
 │   │
 │   ├── index.html
 │   ├── main.ts
-│   └── environments/
-│       ├── environment.ts
-│       └── environment.prod.ts
+│   └── styles.scss                    // Diretivas Tailwind + estilos globais
 │
 ├── angular.json
 ├── tailwind.config.js
+├── postcss.config.js
+├── proxy.conf.json                    // Proxy dev para API
 ├── tsconfig.json
 ├── package.json
-└── .env.local                   // NEXT_PUBLIC_API_URL=http://localhost:8080
+└── docker-entrypoint.sh               // Runtime env vars (Docker)
 ```
 
 ---
@@ -178,9 +164,9 @@ frontend/
 ### 4.1 Estrutura Padrão da API
 
 ```typescript
-// core/interfaces/api-response.interface.ts
+// core/interfaces/api.interface.ts
 
-export interface ApiResponse<T> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: ApiError;
@@ -206,7 +192,7 @@ export interface CategoryGroup {
   type: CategoryGroupType;
   sortOrder: number;
   createdAt: string;     // ISO datetime
-  categories?: Category[];
+  categories: Category[];
 }
 
 export interface Category {
@@ -228,12 +214,9 @@ export interface CreateCategoryPayload {
   sortOrder?: number;
 }
 
-export interface UpdateCategoryPayload {
-  name?: string;
-  expenseType?: ExpenseType | null;
-  sortOrder?: number;
+export type UpdateCategoryPayload = Partial<CreateCategoryPayload> & {
   active?: boolean;
-}
+};
 ```
 
 ### 4.3 Transaction
@@ -249,12 +232,14 @@ export interface Transaction {
   categoryId: number;
   date: string;               // YYYY-MM-DD
   amount: number;             // em centavos
-  note: string;
   type: TransactionType;
+  note: string;
   createdAt: string;
   updatedAt: string;
-  period?: Period;
-  category?: Category;
+  categoryName?: string;      // Nome da categoria (populado pela API)
+  periodLabel?: string;       // Label do período (populado pela API)
+  category?: { id: number; name: string; expenseType?: string | null };
+  period?: { id: number; year: number; month: number; closedAt?: string | null };
 }
 
 export interface CreateTransactionPayload {
@@ -266,13 +251,7 @@ export interface CreateTransactionPayload {
 }
 
 // PATCH aceita campos parciais
-export interface UpdateTransactionPayload {
-  categoryId?: number;
-  date?: string;
-  amount?: number;
-  type?: TransactionType;
-  note?: string;
-}
+export type UpdateTransactionPayload = Partial<CreateTransactionPayload>;
 ```
 
 ### 4.4 Period
@@ -284,26 +263,16 @@ export interface Period {
   id: number;
   year: number;
   month: number;
+  label?: string;              // "maio/2026"
   closedAt: string | null;    // null se aberto
   createdAt: string;
   updatedAt: string;
-}
-
-export interface PeriodListItem {
-  id: number;
-  year: number;
-  month: number;
-  label: string;              // "2026-05"
-  closedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  transactionCount?: number;
   balance?: number;
-  revenueTotal?: number;
-  investmentTotal?: number;
-  fixedExpenseTotal?: number;
-  variableExpenseTotal?: number;
-  extraExpenseTotal?: number;
-  additionalExpenseTotal?: number;
+  expectedRevenue?: number;
+  actualRevenue?: number;
+  totalExpenses?: number;
+  totalInvestments?: number;
 }
 
 export interface ClosePeriodPayload {
@@ -312,7 +281,7 @@ export interface ClosePeriodPayload {
 }
 ```
 
-### 4.5 MonthlySummary
+### 4.5 MonthlySummary / DetailedSummary
 
 ```typescript
 // core/interfaces/summary.interface.ts
@@ -329,6 +298,49 @@ export interface MonthlySummary {
   balance: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DetailedSummary {
+  period: string;
+  periodId: number;
+  closed: boolean;
+  revenue: RevenueSummary;
+  investments: InvestmentsSummary;
+  expenses: ExpensesSummary;
+  balance: number;
+  summary: MonthlySummary;
+}
+
+export interface CategorySummary {
+  categoryId: number;
+  categoryName: string;
+  amount: number;
+}
+
+export interface ExpenseTypeSummary {
+  total: number;
+  categories: CategorySummary[];
+  count: number;
+}
+
+export interface RevenueSummary {
+  total: number;
+  categories: CategorySummary[];
+  count: number;
+}
+
+export interface InvestmentsSummary {
+  total: number;
+  categories: CategorySummary[];
+  count: number;
+}
+
+export interface ExpensesSummary {
+  total: number;
+  fixed: ExpenseTypeSummary;
+  variable: ExpenseTypeSummary;
+  extra: ExpenseTypeSummary;
+  additional: ExpenseTypeSummary;
 }
 ```
 
@@ -350,10 +362,10 @@ Base URL: `http://localhost:8080/api`
 | DELETE | `/api/categories/{id}`      | Excluir categoria       | —                  | `{ message }`                          |
 | GET    | `/api/periods`              | Listar períodos         | —                  | `{ periods[] }`                        |
 | POST   | `/api/periods/close`        | Fechar período          | `ClosePeriodPayload` | `{ message, period }`               |
-| GET    | `/api/summary?period=`      | Obter resumo mensal     | —                  | `{ summary, period }`                  |
+| GET    | `/api/summary?period=`      | Obter resumo mensal     | —                  | `DetailedSummary`                      |
 | GET    | `/api/health`               | Health check            | —                  | `{ status }`                           |
 
-**Convenção:** A API usa **camelCase** tanto em requests quanto em responses (observado no código Go). Exceção: alguns campos como `expense_type` no request de criação de categoria usam snake_case — padronizar tudo como camelCase no frontend.
+**Convenção:** A API usa **camelCase** tanto em requests quanto em responses (observado no código Go). Exceção: alguns campos como `expense_type` no request de criação de categoria usam snake_case — convertido via `CategoryService.toSnakeCase()`.
 
 **Formato da resposta de erro:**
 ```json
@@ -385,90 +397,119 @@ Base URL: `http://localhost:8080/api`
 flowchart TD
     subgraph Components
         DC[DashboardComponent]
-        TLC[TransactionListComponent]
+        TLC[TransactionsListComponent]
         TFC[TransactionFormComponent]
         CC[CategoriesComponent]
         PC[PeriodsComponent]
-        SC[SummaryComponent]
     end
-    
+
     subgraph Services
         CS[CategoryService]
         TS[TransactionService]
         PS[PeriodService]
         SS[SummaryService]
-        US[CurrencyService]
         PNS[PeriodNavigationService]
     end
-    
+
+    subgraph Utils
+        CU[CurrencyUtils]
+    end
+
     subgraph HTTP
         H[HttpClient]
     end
-    
+
     DC --> CS
     DC --> TS
     DC --> SS
-    DC --> US
+    DC --> CU
     DC --> PNS
-    
+
     TLC --> TS
     TLC --> PNS
     TFC --> TS
     TFC --> CS
-    TFC --> US
-    
+    TFC --> CU
+
     CC --> CS
     PC --> PS
     PC --> SS
-    SC --> SS
-    SC --> PNS
-    
+
     CS --> H
     TS --> H
     PS --> H
     SS --> H
-    
+
     PNS -.-> |compartilha período ativo| DC
     PNS -.-> |compartilha período ativo| TLC
-    PNS -.-> |compartilha período ativo| SC
 ```
 
-### 6.2 CategoryService
+### 6.2 BaseApiService (classe abstrata base)
+
+```typescript
+// core/services/base-api.service.ts
+
+export abstract class BaseApiService {
+  protected readonly http = inject(HttpClient);
+  protected abstract readonly basePath: string;
+
+  /** Constrói a URL completa a partir da base da API + basePath */
+  private buildUrl(path?: string): string { /* ... */ }
+
+  /** GET com envelope ApiResponse */
+  protected get<T>(path?: string, params?: HttpParams): Observable<T> { /* ... */ }
+
+  /** POST com envelope ApiResponse */
+  protected post<T>(body: unknown, path?: string): Observable<T> { /* ... */ }
+
+  /** PATCH com envelope ApiResponse */
+  protected patch<T>(id: number, body: unknown): Observable<T> { /* ... */ }
+
+  /** DELETE com envelope ApiResponse */
+  protected deleteRequest<T>(id: number): Observable<T> { /* ... */ }
+
+  /** Extrai data do envelope { success, data, error } */
+  private extractData<T>(response: ApiResponse<T>): T { /* ... */ }
+}
+```
+
+### 6.3 CategoryService
 
 ```typescript
 // core/services/category.service.ts
 
 @Injectable({ providedIn: 'root' })
-export class CategoryService {
-  constructor(private http: HttpClient) {}
+export class CategoryService extends BaseApiService {
+  protected readonly basePath = '/api/categories';
 
   /** GET /api/categories - Retorna grupos com categorias aninhadas */
   list(): Observable<CategoryGroup[]> {
-    return this.http.get<ApiResponse<{ groups: CategoryGroup[] }>>(`${API_URL}/api/categories`)
-      .pipe(map(res => res.data!.groups));
+    return this.get<{ groups: CategoryGroup[] }>().pipe(
+      map((response) => response.groups)
+    );
   }
 
   /** POST /api/categories */
   create(payload: CreateCategoryPayload): Observable<Category> {
-    return this.http.post<ApiResponse<Category>>(`${API_URL}/api/categories`, payload)
-      .pipe(map(res => res.data!));
+    return this.post<Category>(this.toSnakeCase(payload));
   }
 
   /** PATCH /api/categories/:id */
   update(id: number, payload: UpdateCategoryPayload): Observable<Category> {
-    return this.http.patch<ApiResponse<Category>>(`${API_URL}/api/categories/${id}`, payload)
-      .pipe(map(res => res.data!));
+    return this.patch<Category>(id, this.toSnakeCase(payload));
   }
 
   /** DELETE /api/categories/:id */
-  delete(id: number): Observable<void> {
-    return this.http.delete<ApiResponse<{ message: string }>>(`${API_URL}/api/categories/${id}`)
-      .pipe(map(() => undefined));
+  deleteCategory(id: number): Observable<{ message: string }> {
+    return this.deleteRequest<{ message: string }>(id);
   }
+
+  /** Converte camelCase → snake_case para API Go */
+  private toSnakeCase(payload: CreateCategoryPayload | UpdateCategoryPayload): Record<string, unknown> { /* ... */ }
 }
 ```
 
-### 6.3 TransactionService
+### 6.4 TransactionService
 
 ```typescript
 // core/services/transaction.service.ts
@@ -479,88 +520,97 @@ export interface TransactionListResponse {
   period: string;
 }
 
-export interface TransactionMutationResponse {
+export interface TransactionCreateResponse {
   transaction: Transaction;
   summary: MonthlySummary;
 }
 
+export interface TransactionDeleteResponse {
+  message: string;
+  summary: MonthlySummary;
+}
+
 @Injectable({ providedIn: 'root' })
-export class TransactionService {
-  constructor(private http: HttpClient) {}
+export class TransactionService extends BaseApiService {
+  protected readonly basePath = '/api/transactions';
 
   /** GET /api/transactions?period=YYYY-MM */
-  listByPeriod(period: string): Observable<TransactionListResponse> {
-    return this.http.get<ApiResponse<TransactionListResponse>>(
-      `${API_URL}/api/transactions?period=${period}`
-    ).pipe(map(res => res.data!));
+  list(period: string): Observable<TransactionListResponse> {
+    const params = new HttpParams().set('period', period);
+    return this.get<TransactionListResponse>('', params);
   }
 
   /** POST /api/transactions */
-  create(payload: CreateTransactionPayload): Observable<TransactionMutationResponse> {
-    return this.http.post<ApiResponse<TransactionMutationResponse>>(
-      `${API_URL}/api/transactions`, payload
-    ).pipe(map(res => res.data!));
+  create(payload: CreateTransactionPayload): Observable<TransactionCreateResponse> {
+    return this.post<TransactionCreateResponse>(payload);
   }
 
   /** PATCH /api/transactions/:id */
-  update(id: number, payload: UpdateTransactionPayload): Observable<TransactionMutationResponse> {
-    return this.http.patch<ApiResponse<TransactionMutationResponse>>(
-      `${API_URL}/api/transactions/${id}`, payload
-    ).pipe(map(res => res.data!));
+  update(id: number, payload: UpdateTransactionPayload): Observable<TransactionCreateResponse> {
+    return this.patch<TransactionCreateResponse>(id, payload);
   }
 
   /** DELETE /api/transactions/:id */
-  delete(id: number): Observable<{ message: string; summary: MonthlySummary }> {
-    return this.http.delete<ApiResponse<{ message: string; summary: MonthlySummary }>>(
-      `${API_URL}/api/transactions/${id}`
-    ).pipe(map(res => res.data!));
+  deleteTransaction(id: number): Observable<TransactionDeleteResponse> {
+    return this.deleteRequest<TransactionDeleteResponse>(id);
   }
 }
 ```
 
-### 6.4 PeriodService
+### 6.5 PeriodService
 
 ```typescript
 // core/services/period.service.ts
 
+export interface PeriodCloseResponse {
+  message: string;
+  period: Period;
+}
+
 @Injectable({ providedIn: 'root' })
-export class PeriodService {
-  constructor(private http: HttpClient) {}
+export class PeriodService extends BaseApiService {
+  protected readonly basePath = '/api/periods';
 
   /** GET /api/periods */
-  list(): Observable<PeriodListItem[]> {
-    return this.http.get<ApiResponse<{ periods: PeriodListItem[] }>>(`${API_URL}/api/periods`)
-      .pipe(map(res => res.data!.periods));
+  list(): Observable<Period[]> {
+    return this.get<{ periods: Period[] }>().pipe(
+      map((response) => response.periods)
+    );
   }
 
   /** POST /api/periods/close */
-  close(year: number, month: number): Observable<{ message: string; period: Period }> {
-    return this.http.post<ApiResponse<{ message: string; period: Period }>>(
-      `${API_URL}/api/periods/close`, { year, month }
-    ).pipe(map(res => res.data!));
+  close(payload: ClosePeriodPayload): Observable<PeriodCloseResponse> {
+    return this.post<PeriodCloseResponse>(payload, 'close');
   }
 }
 ```
 
-### 6.5 SummaryService
+### 6.6 SummaryService
 
 ```typescript
 // core/services/summary.service.ts
 
 @Injectable({ providedIn: 'root' })
-export class SummaryService {
-  constructor(private http: HttpClient) {}
+export class SummaryService extends BaseApiService {
+  protected readonly basePath = '/api/summary';
 
-  /** GET /api/summary?period=YYYY-MM */
-  getByPeriod(period: string): Observable<{ summary: MonthlySummary; period: string }> {
-    return this.http.get<ApiResponse<{ summary: MonthlySummary; period: string }>>(
-      `${API_URL}/api/summary?period=${period}`
-    ).pipe(map(res => res.data!));
+  /** GET /api/summary?period=YYYY-MM → DetailedSummary */
+  getByPeriod(period: string): Observable<DetailedSummary> {
+    const params = new HttpParams().set('period', period);
+    return this.get<DetailedSummary>('', params);
+  }
+
+  /** Extrai apenas o MonthlySummary do retorno detalhado */
+  getMonthlySummary(period: string): Observable<MonthlySummary> {
+    const params = new HttpParams().set('period', period);
+    return this.get<DetailedSummary>('', params).pipe(
+      map((detailed) => detailed.summary)
+    );
   }
 }
 ```
 
-### 6.6 PeriodNavigationService (Estado Compartilhado)
+### 6.7 PeriodNavigationService (Estado Compartilhado)
 
 ```typescript
 // core/services/period-navigation.service.ts
@@ -585,12 +635,12 @@ export class PeriodNavigationService {
   }
 
   /** Avançar um mês */
-  nextMonth(): void {
+  next(): void {
     this._currentPeriod.next(this.shiftMonth(1));
   }
 
   /** Voltar um mês */
-  previousMonth(): void {
+  previous(): void {
     this._currentPeriod.next(this.shiftMonth(-1));
   }
 
@@ -607,28 +657,44 @@ export class PeriodNavigationService {
 }
 ```
 
-### 6.7 CurrencyUtils (Utilitário de Formatação)
+### 6.8 CurrencyUtils (Classe Utilitária Estática — não é injetável)
 
 ```typescript
 // core/utils/currency.utils.ts
 
-/** Converte centavos para reais (ex: 150000 → R$ 1.500,00) */
-export function centsToBRL(cents: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(cents / 100);
-}
+export class CurrencyUtils {
+  /** Converte centavos para float (ex: 150000 → 1500.00) */
+  static centsToFloat(cents: number): number {
+    return cents / 100;
+  }
 
-/** Converte reais (string) para centavos (ex: "1500,00" → 150000) */
-export function brlToCents(value: string): number {
-  const cleaned = value.replace(/[R$\s.]/g, '').replace(',', '.');
-  return Math.round(parseFloat(cleaned) * 100);
-}
+  /** Converte float para centavos (ex: 1500.00 → 150000) */
+  static floatToCents(value: number): number {
+    return Math.round(value * 100);
+  }
 
-/** Converte centavos para valor decimal (ex: 150000 → 1500.00) */
-export function centsToDecimal(cents: number): number {
-  return cents / 100;
+  /** Formata centavos como moeda BRL (ex: 150000 → "R$ 1.500,00") */
+  static formatBRL(cents: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(this.centsToFloat(cents));
+  }
+
+  /** Formata centavos como número compacto (ex: 150000 → "1.500,00") */
+  static formatNumber(cents: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(this.centsToFloat(cents));
+  }
+
+  /** Converte string BRL para centavos (ex: "1.500,00" → 150000) */
+  static parseBRL(value: string): number {
+    const cleaned = value.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+    const floatValue = parseFloat(cleaned);
+    return isNaN(floatValue) ? 0 : this.floatToCents(floatValue);
+  }
 }
 ```
 
@@ -642,46 +708,38 @@ export function centsToDecimal(cents: number): number {
 flowchart LR
     subgraph Layout
         A[AppComponent]
-        S[SidebarComponent]
-        ML[MainLayoutComponent]
+        ML[MainLayout - sidebar inline]
     end
-    
+
     subgraph Shared
         PH[PageHeaderComponent]
         LS[LoadingSpinnerComponent]
         ES[EmptyStateComponent]
+        EA[ErrorAlertComponent]
         CD[ConfirmDialogComponent]
     end
-    
+
     subgraph Dashboard "feature: dashboard"
         D[DashboardComponent]
-        BC[BalanceCardComponent]
-        SC[SummaryCardsComponent]
-        RT[RecentTransactionsComponent]
     end
-    
+
     subgraph Transactions "feature: transactions"
-        TC[TransactionsComponent - Lista]
-        TF[TransactionFormComponent - Cria/Edita]
-        TT[TransactionTableComponent]
-        TR[TransactionRowComponent]
-        PF[PeriodFilterComponent]
+        TL[TransactionsList - Lista]
+        TF[TransactionForm - Cria]
     end
-    
+
     subgraph Categories "feature: categories"
         CC[CategoriesComponent]
-        CF[CategoryFormComponent]
-        CG[CategoryGroupComponent]
     end
-    
+
     subgraph Periods "feature: periods"
         PC[PeriodsComponent]
     end
-    
+
     A --> ML
-    ML --> S
     ML --> |router-outlet| D
-    ML --> |router-outlet| TC
+    ML --> |router-outlet| TL
+    ML --> |router-outlet| TF
     ML --> |router-outlet| CC
     ML --> |router-outlet| PC
 ```
@@ -689,22 +747,23 @@ flowchart LR
 ### 7.2 Descrição dos Componentes
 
 #### DashboardComponent
-- **Rota:** `/dashboard` (padrão `/`)
+- **Rota:** `/` (carregado como rota padrão)
+- **Arquivo:** [`features/dashboard/dashboard.ts`](frontend/src/app/features/dashboard/dashboard.ts)
 - **Responsabilidade:** Exibe resumo do mês atual (ou selecionado)
-- **Dados:** busca `SummaryService.getByPeriod()` + `TransactionService.listByPeriod()`
-- **Subcomponentes:** `BalanceCardComponent` (saldo), `SummaryCardsComponent` (cards de receitas/despesas/investimentos), `RecentTransactionsComponent` (últimas 5-10 transações)
-- **Navegador de período:** botões "mês anterior/próximo" + seletor de mês/ano
+- **Dados:** busca `SummaryService.getByPeriod()` + `TransactionService.list()`
+- **Navegador de período:** botões "mês anterior/próximo" no sidebar (via `PeriodNavigationService`)
 
-#### TransactionsComponent
+#### TransactionsList
 - **Rota:** `/transactions`
-- **Responsabilidade:** Lista transações do período com filtros
-- **Parâmetro de consulta:** `?period=2026-05` (opcional, usa o período ativo do `PeriodNavigationService`)
-- **Subcomponentes:** `PeriodFilterComponent`, `TransactionTableComponent`, `TransactionRowComponent`
-- **Ações:** botão "Nova Transação" → `TransactionFormComponent`, clique na linha → `TransactionFormComponent` em modo edição
+- **Arquivo:** [`features/transactions/transactions-list.ts`](frontend/src/app/features/transactions/transactions-list.ts)
+- **Responsabilidade:** Lista transações do período
+- **Parâmetro de consulta:** `?period=2026-05` (usa o período ativo do `PeriodNavigationService`)
+- **Ações:** botão "Nova Transação" → `/transactions/new`
 
-#### TransactionFormComponent
-- **Rota:** `/transactions/new` e `/transactions/:id/edit`
-- **Responsabilidade:** Formulário de criação/edição de transação
+#### TransactionForm
+- **Rota:** `/transactions/new`
+- **Arquivo:** [`features/transactions/transaction-form.ts`](frontend/src/app/features/transactions/transaction-form.ts)
+- **Responsabilidade:** Formulário de criação de transação (não existe rota de edição)
 - **Campos:**
   - `type` (select: Receita / Investimento / Despesa)
   - `categoryId` (select dependente do `type` selecionado)
@@ -712,16 +771,17 @@ flowchart LR
   - `amount` (input numérico em reais, convertido para centavos no submit)
   - `note` (textarea, obrigatório)
 - **Validações:** Reactive Forms com validadores customizados
-- **Conversão:** Valor em reais (R$) → centavos (integer) ao submeter
+- **Conversão:** Valor em reais (R$) → centavos (integer) via `CurrencyUtils.parseBRL()`
 
 #### CategoriesComponent
 - **Rota:** `/categories`
+- **Arquivo:** [`features/categories/categories.ts`](frontend/src/app/features/categories/categories.ts)
 - **Responsabilidade:** Gestão completa de grupos e categorias
-- **Subcomponentes:** `CategoryGroupComponent` (acordeão por grupo), `CategoryFormComponent` (modal/dialog)
 - **Ações:** Ativar/desativar toggle, editar nome, excluir
 
 #### PeriodsComponent
 - **Rota:** `/periods`
+- **Arquivo:** [`features/periods/periods.ts`](frontend/src/app/features/periods/periods.ts)
 - **Responsabilidade:** Lista períodos com indicador de aberto/fechado e ação de fechar
 - **Dados:** `PeriodService.list()`
 - **Ações:** Botão "Fechar Período" com confirmação
@@ -730,147 +790,179 @@ flowchart LR
 
 ## 8. Roteamento com Lazy Loading
 
+### Rotas Principais
+
 ```typescript
 // app.routes.ts
 
 export const routes: Routes = [
   {
     path: '',
-    component: MainLayoutComponent,
+    loadComponent: () => import('./core/layouts/main-layout').then((c) => c.MainLayout),
     children: [
       {
         path: '',
-        redirectTo: 'dashboard',
-        pathMatch: 'full',
-      },
-      {
-        path: 'dashboard',
-        loadComponent: () =>
-          import('./features/dashboard/dashboard.component').then(
-            (m) => m.DashboardComponent
-          ),
+        loadComponent: () => import('./features/dashboard/dashboard').then((c) => c.default),
         title: 'Dashboard - Finance Tracker',
       },
       {
         path: 'transactions',
-        loadChildren: () =>
-          import('./features/transactions/transactions.routes').then(
-            (m) => m.transactionRoutes
-          ),
+        loadComponent: () => import('./features/transactions/transactions-list').then((c) => c.default),
         title: 'Transações - Finance Tracker',
       },
       {
+        path: 'transactions/new',
+        loadComponent: () => import('./features/transactions/transaction-form').then((c) => c.default),
+        title: 'Nova Transação - Finance Tracker',
+      },
+      {
         path: 'categories',
-        loadComponent: () =>
-          import('./features/categories/categories.component').then(
-            (m) => m.CategoriesComponent
-          ),
+        loadComponent: () => import('./features/categories/categories').then((c) => c.default),
         title: 'Categorias - Finance Tracker',
       },
       {
         path: 'periods',
-        loadComponent: () =>
-          import('./features/periods/periods.component').then(
-            (m) => m.PeriodsComponent
-          ),
+        loadComponent: () => import('./features/periods/periods').then((c) => c.default),
         title: 'Períodos - Finance Tracker',
+      },
+      {
+        path: '**',
+        redirectTo: '',
       },
     ],
   },
-  {
-    path: '**',
-    redirectTo: 'dashboard',
-  },
 ];
 ```
 
-```typescript
-// features/transactions/transactions.routes.ts
+### Tabela de Rotas
 
-export const transactionRoutes: Routes = [
-  {
-    path: '',
-    component: TransactionsComponent,
-  },
-  {
-    path: 'new',
-    component: TransactionFormComponent,
-    title: 'Nova Transação',
-  },
-  {
-    path: ':id/edit',
-    component: TransactionFormComponent,
-    title: 'Editar Transação',
-  },
-];
-```
+| Caminho               | Componente           | Carregamento   | Título                           |
+|-----------------------|----------------------|----------------|----------------------------------|
+| `/`                   | DashboardComponent   | `loadComponent` | Dashboard - Finance Tracker      |
+| `/transactions`       | TransactionsList     | `loadComponent` | Transações - Finance Tracker     |
+| `/transactions/new`   | TransactionForm      | `loadComponent` | Nova Transação - Finance Tracker |
+| `/categories`         | CategoriesComponent  | `loadComponent` | Categorias - Finance Tracker     |
+| `/periods`            | PeriodsComponent     | `loadComponent` | Períodos - Finance Tracker       |
+| `**`                  | — (redirect to `/`)  | —              | —                                |
 
-**Estrutura do MainLayoutComponent:**
+**Nota:** Não existe rota de edição (`/transactions/:id/edit`). O formulário é apenas para criação. Todas as rotas usam `loadComponent` com `() => import(...)` para lazy loading, sem `loadChildren` ou rotas filhas aninhadas.
+
+### Estrutura do MainLayout (sidebar inline, sem componente separado)
 
 ```typescript
-// core/layouts/main-layout.component.ts
+// core/layouts/main-layout.ts
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, SidebarComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, AsyncPipe],
   template: `
-    <div class="flex h-screen bg-gray-100">
-      <app-sidebar />
-      <main class="flex-1 overflow-y-auto p-6">
-        <router-outlet />
-      </main>
+    <div class="flex h-screen overflow-hidden bg-gray-50">
+      <!-- Sidebar (inline, sem SidebarComponent separado) -->
+      <aside
+        class="fixed inset-y-0 left-0 z-30 w-64 transform bg-white shadow-lg transition-transform duration-300 lg:static lg:translate-x-0"
+        [class.-translate-x-full]="!sidebarOpen()"
+      >
+        <div class="flex h-full flex-col">
+          <!-- Logo -->
+          <div class="flex h-16 items-center justify-between border-b border-gray-200 px-6">
+            <span class="text-xl font-bold text-indigo-600">Finance Tracker</span>
+          </div>
+
+          <!-- Period Navigation -->
+          <div class="border-b border-gray-200 px-4 py-4">
+            <div class="flex items-center justify-between">
+              <button (click)="periodNav.previous()" title="Mês anterior">◀</button>
+              <span>{{ DateUtils.periodToMonthName(period) }}</span>
+              <button (click)="periodNav.next()" title="Próximo mês">▶</button>
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <nav class="flex-1 space-y-1 px-3 py-4">
+            @for (item of navItems; track item.path) {
+              <a [routerLink]="item.path" routerLinkActive="bg-indigo-50 text-indigo-700"
+                 class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                {{ item.label }}
+              </a>
+            }
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Overlay (mobile) - toggle via click -->
+      @if (sidebarOpen()) {
+        <div class="fixed inset-0 z-20 bg-black/50 lg:hidden" (click)="toggleSidebar()"></div>
+      }
+
+      <!-- Main Content -->
+      <div class="flex flex-1 flex-col overflow-hidden">
+        <!-- Top Bar (mobile) -->
+        <header class="flex h-16 items-center border-b border-gray-200 bg-white px-4 lg:hidden">
+          <button (click)="toggleSidebar()" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100">
+            ☰
+          </button>
+        </header>
+
+        <!-- Page Content -->
+        <main class="flex-1 overflow-y-auto p-4 lg:p-8">
+          <router-outlet />
+        </main>
+      </div>
     </div>
   `,
 })
-export class MainLayoutComponent {}
+export class MainLayout {
+  protected readonly periodNav = inject(PeriodNavigationService);
+  protected readonly DateUtils = DateUtils;
+  protected readonly period$ = this.periodNav.currentPeriod$;
+  protected readonly sidebarOpen = signal(false);
+
+  protected readonly navItems = [
+    { path: '/', label: 'Dashboard', exact: true },
+    { path: '/transactions', label: 'Transações', exact: false },
+    { path: '/categories', label: 'Categorias', exact: false },
+    { path: '/periods', label: 'Períodos', exact: false },
+  ];
+
+  toggleSidebar(): void {
+    this.sidebarOpen.update((v) => !v);
+  }
+}
 ```
 
-**SidebarComponent:**
+**Sidebar:** A sidebar é inline no template do `MainLayout`. Não existe um `SidebarComponent` separado. O toggle do sidebar em mobile é feito via `toggleSidebar()` (chamado pelo overlay `(click)` e pelo botão hamburger), com um `signal<boolean>` controlando a classe `-translate-x-full`.
+
+---
+
+## 9. Configuração do App (Change Detection)
+
+**Real:** O [`app.config.ts`](frontend/src/app/app.config.ts) não usa `provideExperimentalZonelessChangeDetection`. Usa `provideBrowserGlobalErrorListeners()`, `provideRouter(routes)` e `provideHttpClient(withInterceptors([apiErrorInterceptor]))`. O change detection é o padrão do Angular (Zone-based).
 
 ```typescript
-// core/layouts/sidebar.component.ts
+// app.config.ts
 
-@Component({
-  selector: 'app-sidebar',
-  standalone: true,
-  imports: [RouterLink, RouterLinkActive],
-  template: `
-    <nav class="w-64 bg-white shadow-lg flex flex-col">
-      <div class="p-4 border-b">
-        <h1 class="text-xl font-bold text-gray-800">Finance Tracker</h1>
-      </div>
-      <div class="flex-1 p-4 space-y-2">
-        <a routerLink="/dashboard"
-           routerLinkActive="bg-blue-50 text-blue-700"
-           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-          📊 Dashboard
-        </a>
-        <a routerLink="/transactions"
-           routerLinkActive="bg-blue-50 text-blue-700"
-           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-          💳 Transações
-        </a>
-        <a routerLink="/categories"
-           routerLinkActive="bg-blue-50 text-blue-700"
-           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-          📂 Categorias
-        </a>
-        <a routerLink="/periods"
-           routerLinkActive="bg-blue-50 text-blue-700"
-           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50">
-          📈 Períodos
-        </a>
-      </div>
-    </nav>
-  `,
-})
-export class SidebarComponent {}
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+
+import { routes } from './app.routes';
+import { apiErrorInterceptor } from './core/interceptors/api-error.interceptor';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    provideHttpClient(
+      withInterceptors([apiErrorInterceptor])
+    ),
+  ],
+};
 ```
 
 ---
 
-## 9. Configuração do Tailwind CSS
+## 10. Configuração do Tailwind CSS
 
 ```javascript
 // tailwind.config.js
@@ -903,7 +995,7 @@ module.exports = {
 ```
 
 ```css
-/* styles/tailwind.css */
+/* styles.scss */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -917,9 +1009,9 @@ module.exports = {
 
 ---
 
-## 10. Fluxo de Dados e Exemplos
+## 11. Fluxo de Dados e Exemplos
 
-### 10.1 Fluxo: Usuário cria uma transação
+### 11.1 Fluxo: Usuário cria uma transação
 
 ```mermaid
 sequenceDiagram
@@ -928,13 +1020,13 @@ sequenceDiagram
     participant TS as TransactionService
     participant API as Backend (Go)
     participant DB as Database
-    
+
     U->>TF: Preenche formulário e clica "Salvar"
     TF->>TF: Valida formulário (ReactiveForms)
-    TF->>TF: Converte valor R$ → centavos
+    TF->>TF: Converte valor R$ → centavos (CurrencyUtils.parseBRL())
     TF->>TS: create(payload)
     TS->>API: POST /api/transactions {categoryId, date, amount, type, note}
-    
+
     API->>API: Valida campos obrigatórios
     API->>API: Verifica período aberto
     API->>API: Verifica categoria ativa
@@ -942,28 +1034,27 @@ sequenceDiagram
     API->>DB: UPSERT monthly_summary (recalculate)
     DB-->>API: transaction + summary
     API-->>TS: 201 { transaction, summary }
-    
+
     TS-->>TF: { transaction, summary }
     TF->>TF: Exibe toast/sucesso
     TF->>U: Redireciona para lista de transações
 ```
 
-### 10.2 Exemplo: TransactionFormComponent com ReactiveForms
+### 11.2 Exemplo: TransactionFormComponent com ReactiveForms
 
 ```typescript
-// features/transactions/transaction-form.component.ts (trecho)
+// features/transactions/transaction-form.ts (trecho conceitual)
 
 @Component({
   selector: 'app-transaction-form',
   standalone: true,
-  imports: [ReactiveFormsModule, NgFor, NgIf, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AsyncPipe],
   template: `
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-4">
       <!-- Tipo -->
       <div>
         <label class="block text-sm font-medium">Tipo</label>
-        <select formControlName="type"
-                class="w-full border rounded-lg px-3 py-2">
+        <select formControlName="type" class="w-full border rounded-lg px-3 py-2">
           <option value="">Selecione...</option>
           <option value="income">Receita</option>
           <option value="investment">Investimento</option>
@@ -974,57 +1065,51 @@ sequenceDiagram
       <!-- Categoria (filtrada pelo tipo selecionado) -->
       <div>
         <label class="block text-sm font-medium">Categoria</label>
-        <select formControlName="categoryId"
-                class="w-full border rounded-lg px-3 py-2">
+        <select formControlName="categoryId" class="w-full border rounded-lg px-3 py-2">
           <option value="">Selecione...</option>
-          <option *ngFor="let cat of filteredCategories"
-                  [value]="cat.id">{{ cat.name }}</option>
+          @for (cat of filteredCategories(); track cat.id) {
+            <option [value]="cat.id">{{ cat.name }}</option>
+          }
         </select>
       </div>
 
       <!-- Data -->
       <div>
         <label class="block text-sm font-medium">Data</label>
-        <input type="date" formControlName="date"
-               class="w-full border rounded-lg px-3 py-2" />
+        <input type="date" formControlName="date" class="w-full border rounded-lg px-3 py-2" />
       </div>
 
       <!-- Valor (em reais, convertido internamente) -->
       <div>
         <label class="block text-sm font-medium">Valor (R$)</label>
-        <input type="text" formControlName="amountDisplay"
-               placeholder="1.500,00"
+        <input type="text" formControlName="amountDisplay" placeholder="1.500,00"
                class="w-full border rounded-lg px-3 py-2" />
       </div>
 
       <!-- Observação -->
       <div>
         <label class="block text-sm font-medium">Observação</label>
-        <textarea formControlName="note" rows="3"
-                  class="w-full border rounded-lg px-3 py-2"></textarea>
+        <textarea formControlName="note" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea>
       </div>
 
       <!-- Botões -->
       <div class="flex gap-3">
         <button type="submit" [disabled]="form.invalid || loading"
-                class="bg-blue-600 text-white px-6 py-2 rounded-lg
-                       hover:bg-blue-700 disabled:opacity-50">
-          {{ isEditing ? 'Atualizar' : 'Criar' }}
+                class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          Criar
         </button>
-        <a routerLink="/transactions"
-           class="px-6 py-2 rounded-lg border hover:bg-gray-50">
+        <a routerLink="/transactions" class="px-6 py-2 rounded-lg border hover:bg-gray-50">
           Cancelar
         </a>
       </div>
     </form>
   `,
 })
-export class TransactionFormComponent implements OnInit {
+export class TransactionFormComponent {
   private fb = inject(FormBuilder);
   private transactionService = inject(TransactionService);
   private categoryService = inject(CategoryService);
   private router = inject(Router);
-  private route = inject(ActivatedRoute);
 
   form = this.fb.nonNullable.group({
     type: ['', Validators.required],
@@ -1036,18 +1121,13 @@ export class TransactionFormComponent implements OnInit {
 
   categories: Category[] = [];
   loading = false;
-  isEditing = false;
-  private editId?: number;
 
-  get filteredCategories(): Category[] {
-    const type = this.form.value.type;
-    // Filtra categorias com base no tipo de transação
-    return this.categories.filter(c => /* lógica de filtro */);
-  }
-
-  ngOnInit(): void {
-    this.loadCategories();
-    this.checkEditMode();
+  get filteredCategories(): Signal<Category[]> {
+    // Filtra categorias com base no tipo de transação selecionado
+    return computed(() => {
+      const type = this.form.value.type;
+      return this.categories.filter(c => /* lógica de filtro */);
+    });
   }
 
   onSubmit(): void {
@@ -1058,16 +1138,14 @@ export class TransactionFormComponent implements OnInit {
     const payload: CreateTransactionPayload = {
       categoryId: formValue.categoryId,
       date: formValue.date,
-      amount: brlToCents(formValue.amountDisplay),
+      amount: CurrencyUtils.parseBRL(formValue.amountDisplay),
       type: formValue.type as TransactionType,
       note: formValue.note,
     };
 
-    const request = this.isEditing
-      ? this.transactionService.update(this.editId!, payload)
-      : this.transactionService.create(payload);
-
-    request.pipe(finalize(() => (this.loading = false))).subscribe({
+    this.transactionService.create(payload).pipe(
+      finalize(() => (this.loading = false))
+    ).subscribe({
       next: () => this.router.navigate(['/transactions']),
       error: (err) => /* tratar erro */,
     });
@@ -1075,107 +1153,106 @@ export class TransactionFormComponent implements OnInit {
 
   private amountValidator(): ValidatorFn {
     return (control: AbstractControl): ValidationErrors | null => {
-      const value = control.value?.replace(/[R$\s.]/g, '').replace(',', '.');
-      const num = parseFloat(value);
-      return isNaN(num) || num <= 0 ? { invalidAmount: true } : null;
+      const num = CurrencyUtils.parseBRL(control.value || '');
+      return num <= 0 ? { invalidAmount: true } : null;
     };
   }
 }
 ```
 
-### 10.3 Tratamento de Erros (Interceptor)
+### 11.3 Tratamento de Erros (Interceptor Funcional)
 
 ```typescript
-// core/interceptors/http-error.interceptor.ts
+// core/interceptors/api-error.interceptor.ts
 
-@Injectable()
-export class HttpErrorInterceptor implements HttpInterceptor {
-  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    return next.handle(req).pipe(
-      catchError((error: HttpErrorResponse) => {
-        // O backend sempre responde com { success, data?, error? }
-        const apiError = error.error?.error;
-        const message = apiError?.message || 'Erro inesperado';
-        const code = apiError?.code || 'unknown';
+export const apiErrorInterceptor: HttpInterceptorFn = (req, next) => {
+  return next(req).pipe(
+    catchError((error: HttpErrorResponse) => {
+      let message = 'Erro inesperado. Tente novamente.';
 
-        // Mapear códigos para mensagens amigáveis
-        const userMessage = this.getUserMessage(code, message);
-        
-        // Disparar notificação (toast/snackbar)
-        // this.notificationService.error(userMessage);
+      if (error.error?.error?.message) {
+        message = error.error.error.message;
+      } else if (error.error?.message) {
+        message = error.error.message;
+      } else if (error.status === 0) {
+        message = 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+      } else if (error.status === 500) {
+        message = 'Erro interno do servidor. Tente novamente mais tarde.';
+      }
 
-        return throwError(() => ({ code, message: userMessage }));
-      })
-    );
-  }
+      const appError: AppHttpError = {
+        status: error.status,
+        code: error.error?.error?.code ?? 'unknown_error',
+        message,
+        originalError: error,
+      };
 
-  private getUserMessage(code: string, original: string): string {
-    const messages: Record<string, string> = {
-      'period_closed': 'Este período já está fechado e não pode ser alterado.',
-      'already_closed': 'Este período já foi fechado anteriormente.',
-      'not_found': 'Registro não encontrado.',
-      'validation_error': original,
-    };
-    return messages[code] || original;
-  }
+      return throwError(() => appError);
+    })
+  );
+};
+
+export interface AppHttpError {
+  status: number;
+  code: string;
+  message: string;
+  originalError: HttpErrorResponse;
 }
 ```
+
+**Nota:** O interceptor é uma **função** (`HttpInterceptorFn`), não uma classe com `@Injectable()`. Não existe `HttpErrorInterceptor` como classe — o export é `apiErrorInterceptor`.
 
 ---
 
-## 11. Plano de Implementação (TODO)
+## 12. Plano de Implementação (TODO)
 
 ### Fase 1 — Setup do Projeto
 
 - [ ] 1.1 Scaffold do projeto Angular (`ng new finance-tracker --standalone`)
-- [ ] 1.2 Configurar Tailwind CSS (`ng add @angular/material`? Não — instalar manualmente)
-- [ ] 1.3 Configurar Tailwind (`tailwind.config.js`, estilos globais)
+- [ ] 1.2 Configurar Tailwind CSS (instalação manual)
+- [ ] 1.3 Configurar Tailwind (`tailwind.config.js`, `postcss.config.js`, estilos globais)
 - [ ] 1.4 Criar estrutura de diretórios (`core/`, `features/`, `shared/`)
-- [ ] 1.5 Configurar `environment.ts` com `API_URL`
+- [ ] 1.5 Configurar `proxy.conf.json` para API em dev
 
 ### Fase 2 — Core (Interfaces, Serviços, Utilitários)
 
 - [ ] 2.1 Criar interfaces de domínio (`core/interfaces/`)
-- [ ] 2.2 Criar `CategoryService`
-- [ ] 2.3 Criar `TransactionService`
-- [ ] 2.4 Criar `PeriodService`
-- [ ] 2.5 Criar `SummaryService`
-- [ ] 2.6 Criar `PeriodNavigationService` (estado compartilhado)
-- [ ] 2.7 Criar `CurrencyUtils` (+ `brlToCents` / `centsToBRL`)
-- [ ] 2.8 Criar `HttpErrorInterceptor`
-- [ ] 2.9 Configurar providers no `app.config.ts`
+- [ ] 2.2 Criar `BaseApiService` (classe abstrata)
+- [ ] 2.3 Criar `CategoryService`
+- [ ] 2.4 Criar `TransactionService`
+- [ ] 2.5 Criar `PeriodService`
+- [ ] 2.6 Criar `SummaryService`
+- [ ] 2.7 Criar `PeriodNavigationService` (estado compartilhado)
+- [ ] 2.8 Criar `CurrencyUtils` (classe estática)
+- [ ] 2.9 Criar `apiErrorInterceptor` (função `HttpInterceptorFn`)
+- [ ] 2.10 Configurar providers no `app.config.ts`
 
 ### Fase 3 — Layout e Navegação
 
-- [ ] 3.1 Criar `MainLayoutComponent` (sidebar + router-outlet)
-- [ ] 3.2 Criar `SidebarComponent` (navegação)
-- [ ] 3.3 Configurar rotas com lazy loading (`app.routes.ts`)
-- [ ] 3.4 Criar componentes compartilhados (`LoadingSpinner`, `EmptyState`, `ConfirmDialog`, `PageHeader`)
+- [ ] 3.1 Criar `MainLayout` (sidebar inline + router-outlet + navegação de período)
+- [ ] 3.2 Configurar rotas com lazy loading (`app.routes.ts`)
+- [ ] 3.3 Criar componentes compartilhados (`LoadingSpinner`, `EmptyState`, `ConfirmDialog`, `PageHeader`, `ErrorAlert`)
 
 ### Fase 4 — Feature: Dashboard
 
 - [ ] 4.1 Criar `DashboardComponent`
-- [ ] 4.2 Criar `BalanceCardComponent` (saldo do período)
-- [ ] 4.3 Criar `SummaryCardsComponent` (receitas, despesas, investimentos)
-- [ ] 4.4 Criar `RecentTransactionsComponent`
-- [ ] 4.5 Integrar seletor de período (navegação mês a mês)
+- [ ] 4.2 Integrar `SummaryService.getByPeriod()`
+- [ ] 4.3 Integrar navegador de período (sidebar via `PeriodNavigationService`)
+- [ ] 4.4 Exibir cards de resumo (receitas, despesas, investimentos, saldo)
 
 ### Fase 5 — Feature: Transações
 
-- [ ] 5.1 Criar `TransactionsComponent` (lista com tabela)
-- [ ] 5.2 Criar `TransactionTableComponent` + `TransactionRowComponent`
-- [ ] 5.3 Criar `PeriodFilterComponent`
-- [ ] 5.4 Criar `TransactionFormComponent` (modo criação e edição)
-- [ ] 5.5 Integrar validações de formulário
-- [ ] 5.6 Configurar rotas filhas (`transactions.routes.ts`)
+- [ ] 5.1 Criar `TransactionsList` (lista com tabela)
+- [ ] 5.2 Criar `TransactionForm` (formulário de criação)
+- [ ] 5.3 Integrar validações de formulário
+- [ ] 5.4 Integrar `CurrencyUtils.parseBRL()` para conversão de valores
 
 ### Fase 6 — Feature: Categorias
 
 - [ ] 6.1 Criar `CategoriesComponent`
-- [ ] 6.2 Criar `CategoryGroupComponent` (acordeão por grupo)
-- [ ] 6.3 Criar `CategoryFormComponent` (dialog/modal)
-- [ ] 6.4 Integrar ativação/desativação de categorias
-- [ ] 6.5 Confirmar exclusão com `ConfirmDialogComponent`
+- [ ] 6.2 Listar grupos com categorias aninhadas
+- [ ] 6.3 Ativar/desativar toggle
+- [ ] 6.4 Confirmar exclusão com `ConfirmDialog`
 
 ### Fase 7 — Feature: Períodos
 
@@ -1213,7 +1290,10 @@ export class HttpErrorInterceptor implements HttpInterceptor {
 | Componentes Standalone | Angular 17+ standalone components | Menos boilerplate, lazy loading nativo |
 | Reactive Forms | Angular ReactiveFormsModule | Validação síncrona/assíncrona, tipagem forte |
 | Estado de período | BehaviorSubject em serviço singleton | Compartilhado entre rotas sem prop drilling |
-| Formatação monetária | `Intl.NumberFormat` (nativo) | Sem dependência extra, locale pt-BR |
-| Ícones | SVG inline ou emoji | Simplicidade inicial, sem lib externa |
-| HttpClient + Interceptor | Angular HTTP Client | Tratamento centralizado de erros da API |
+| Formatação monetária | `Intl.NumberFormat` (nativo) via `CurrencyUtils` | Sem dependência extra, locale pt-BR |
+| Ícones | SVG inline | Simplicidade inicial, sem lib externa |
+| HttpClient + Interceptor funcional | `HttpInterceptorFn` | Tratamento centralizado de erros da API |
 | Pipes vs Métodos | Pipes `pure` para formatação em templates | Performance (recalculam apenas se input mudar) |
+| Sidebar | Inline no MainLayout | Simplicidade, sem componente separado |
+| BaseApiService | Classe abstrata com `HttpClient` | DRY, envelope padronizado, OCP via herança |
+| CurrencyUtils | Classe com métodos `static` | Utilitário puro, sem injeção de dependência |
