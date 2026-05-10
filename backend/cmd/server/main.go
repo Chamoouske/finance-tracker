@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 
 	"github.com/chamoouske/finance-tracker/internal/handler"
@@ -17,44 +18,8 @@ import (
 )
 
 func main() {
-	// Database path
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "./data/finance.db"
-	}
-
-	// Ensure data directory exists
-	dbDir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		log.Fatalf("Error creating data directory: %v", err)
-	}
-
-	// Open SQLite database
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
-	}
+	db := initDB()
 	defer db.Close()
-
-	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		log.Printf("Warning: could not enable WAL mode: %v", err)
-	}
-	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		log.Printf("Warning: could not enable foreign keys: %v", err)
-	}
-
-	// Run migrations
-	if err := runMigrations(db); err != nil {
-		log.Fatalf("Error running migrations: %v", err)
-	}
-	log.Println("Migrations executed successfully")
-
-	// Load seeds if needed
-	if err := loadSeeds(db); err != nil {
-		log.Fatalf("Error loading seeds: %v", err)
-	}
-	log.Println("Seeds loaded successfully")
 
 	// Initialize repositories
 	periodRepo := repository.NewPeriodRepo(db)
@@ -125,6 +90,92 @@ func main() {
 	}
 }
 
+// initDB initializes the database connection based on environment variables.
+// If DATABASE_URL is set, it connects to PostgreSQL.
+// Otherwise, it falls back to SQLite using DB_PATH or the default path.
+func initDB() *sql.DB {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL != "" {
+		return initPostgres(databaseURL)
+	}
+	return initSQLite()
+}
+
+// initPostgres opens a connection to PostgreSQL, runs migrations and seeds.
+func initPostgres(databaseURL string) *sql.DB {
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
+		log.Fatalf("Error opening PostgreSQL database: %v", err)
+	}
+
+	// Configure connection pool for PostgreSQL
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Validate the connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error connecting to PostgreSQL: %v", err)
+	}
+	log.Println("Connected to PostgreSQL")
+
+	// Run migrations
+	if err := runMigrations(db, "postgres"); err != nil {
+		log.Fatalf("Error running migrations: %v", err)
+	}
+	log.Println("Migrations executed successfully")
+
+	// Load seeds if needed
+	if err := loadSeeds(db, "postgres"); err != nil {
+		log.Fatalf("Error loading seeds: %v", err)
+	}
+	log.Println("Seeds loaded successfully")
+
+	return db
+}
+
+// initSQLite opens a connection to SQLite, runs migrations and seeds.
+func initSQLite() *sql.DB {
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "./data/finance.db"
+	}
+
+	// Ensure data directory exists
+	dbDir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Error creating data directory: %v", err)
+	}
+
+	// Open SQLite database
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		log.Fatalf("Error opening database: %v", err)
+	}
+
+	// Enable WAL mode for better concurrency
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		log.Printf("Warning: could not enable WAL mode: %v", err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		log.Printf("Warning: could not enable foreign keys: %v", err)
+	}
+
+	// Run migrations
+	if err := runMigrations(db, "sqlite"); err != nil {
+		log.Fatalf("Error running migrations: %v", err)
+	}
+	log.Println("Migrations executed successfully")
+
+	// Load seeds if needed
+	if err := loadSeeds(db, "sqlite"); err != nil {
+		log.Fatalf("Error loading seeds: %v", err)
+	}
+	log.Println("Seeds loaded successfully")
+
+	return db
+}
+
 // corsMiddleware adds CORS headers to all responses.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,9 +192,25 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// runMigrations executes the SQL migration file.
-func runMigrations(db *sql.DB) error {
-	migrationPath := filepath.Join("migrations", "001_initial.sql")
+// migrationFile returns the migration file path for the given driver.
+func migrationFile(driver string) string {
+	if driver == "postgres" {
+		return filepath.Join("migrations", "001_initial.postgres.sql")
+	}
+	return filepath.Join("migrations", "001_initial.sql")
+}
+
+// seedFile returns the seed file path for the given driver.
+func seedFile(driver string) string {
+	if driver == "postgres" {
+		return filepath.Join("seeds", "categories.postgres.sql")
+	}
+	return filepath.Join("seeds", "categories.sql")
+}
+
+// runMigrations executes the SQL migration file for the given driver.
+func runMigrations(db *sql.DB, driver string) error {
+	migrationPath := migrationFile(driver)
 	data, err := os.ReadFile(migrationPath)
 	if err != nil {
 		return fmt.Errorf("read migration file: %w", err)
@@ -158,7 +225,7 @@ func runMigrations(db *sql.DB) error {
 }
 
 // loadSeeds loads seed data if the categories table is empty.
-func loadSeeds(db *sql.DB) error {
+func loadSeeds(db *sql.DB, driver string) error {
 	var count int
 	err := db.QueryRow("SELECT COUNT(*) FROM category_groups").Scan(&count)
 	if err != nil {
@@ -170,7 +237,7 @@ func loadSeeds(db *sql.DB) error {
 		return nil
 	}
 
-	seedPath := filepath.Join("seeds", "categories.sql")
+	seedPath := seedFile(driver)
 	data, err := os.ReadFile(seedPath)
 	if err != nil {
 		return fmt.Errorf("read seed file: %w", err)
