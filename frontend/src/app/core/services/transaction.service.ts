@@ -33,14 +33,14 @@ export class TransactionService extends BaseApiService {
      * Creates a new transaction.
      */
     create(payload: CreateTransactionPayload): Observable<TransactionCreateResponse> {
-        return this.post<TransactionCreateResponse>(this.toSnakeCase(payload));
+        return this.post<TransactionCreateResponse>(payload);
     }
 
     /**
      * Updates an existing transaction.
      */
     update(id: number, payload: UpdateTransactionPayload): Observable<TransactionCreateResponse> {
-        return this.patch<TransactionCreateResponse>(id, this.toSnakeCase(payload));
+        return this.patch<TransactionCreateResponse>(id, payload);
     }
 
     /**
@@ -50,18 +50,6 @@ export class TransactionService extends BaseApiService {
         return this.deleteRequest<TransactionDeleteResponse>(id);
     }
 
-    /**
-     * Converts camelCase keys to snake_case for the API.
-     */
-    private toSnakeCase(payload: CreateTransactionPayload | UpdateTransactionPayload): Record<string, unknown> {
-        const result: Record<string, unknown> = {};
-        if ('categoryId' in payload) result['category_id'] = payload.categoryId;
-        if ('date' in payload) result['date'] = payload.date;
-        if ('amount' in payload) result['amount'] = payload.amount;
-        if ('type' in payload) result['type'] = payload.type;
-        if ('note' in payload) result['note'] = payload.note;
-        return result;
-    }
 }
 
 export interface TransactionListResponse {
