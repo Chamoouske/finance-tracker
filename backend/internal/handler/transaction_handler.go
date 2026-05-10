@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
-	"github.com/ajaxl/finance-tracker/internal/service"
+	"github.com/chamoouske/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
 // TransactionHandler handles HTTP requests for transactions.

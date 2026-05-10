@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
 // PeriodService handles business logic for periods.

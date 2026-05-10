@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
 // CategoryService handles business logic for categories.

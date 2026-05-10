@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
-	"github.com/ajaxl/finance-tracker/internal/service"
+	"github.com/chamoouske/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
 // CategoryHandler handles HTTP requests for categories.

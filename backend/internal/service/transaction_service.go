@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
 // TransactionService handles business logic for transactions.

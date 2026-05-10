@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ajaxl/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
 // SummaryService handles business logic for monthly summaries.

@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/ajaxl/finance-tracker/internal/service"
+	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
 // SummaryHandler handles HTTP requests for monthly summaries.

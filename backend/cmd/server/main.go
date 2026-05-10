@@ -11,9 +11,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ajaxl/finance-tracker/internal/handler"
-	"github.com/ajaxl/finance-tracker/internal/repository"
-	"github.com/ajaxl/finance-tracker/internal/service"
+	"github.com/chamoouske/finance-tracker/internal/handler"
+	"github.com/chamoouske/finance-tracker/internal/repository"
+	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
 func main() {
@@ -118,7 +118,7 @@ func main() {
 	}
 
 	log.Printf("Server starting on port %s", port)
-	log.Printf("API available at http://localhost:%s/api", port)
+	log.Printf("API available at port %s", port)
 
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server error: %v", err)
