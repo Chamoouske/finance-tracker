@@ -5,24 +5,27 @@ import (
 	"time"
 
 	"github.com/chamoouske/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/repository"
 )
 
-// PeriodService handles business logic for periods.
-type PeriodService struct {
-	periodRepo  domain.PeriodRepository
-	summaryRepo domain.SummaryRepository
+type PeriodService interface {
+	List() ([]map[string]interface{}, error)
+	Close(year, month int) (*domain.Period, error)
 }
 
-// NewPeriodService creates a new PeriodService.
-func NewPeriodService(periodRepo domain.PeriodRepository, summaryRepo domain.SummaryRepository) *PeriodService {
-	return &PeriodService{
+type periodService struct {
+	periodRepo  repository.PeriodRepository
+	summaryRepo repository.SummaryRepository
+}
+
+func NewPeriodService(periodRepo repository.PeriodRepository, summaryRepo repository.SummaryRepository) PeriodService {
+	return &periodService{
 		periodRepo:  periodRepo,
 		summaryRepo: summaryRepo,
 	}
 }
 
-// List returns all periods with summary info.
-func (s *PeriodService) List() ([]map[string]interface{}, error) {
+func (s *periodService) List() ([]map[string]interface{}, error) {
 	periods, err := s.periodRepo.List()
 	if err != nil {
 		return nil, err
@@ -35,12 +38,11 @@ func (s *PeriodService) List() ([]map[string]interface{}, error) {
 			"year":      p.Year,
 			"month":     p.Month,
 			"label":     fmt.Sprintf("%04d-%02d", p.Year, p.Month),
-			"closedAt": p.ClosedAt,
+			"closedAt":  p.ClosedAt,
 			"createdAt": p.CreatedAt,
 			"updatedAt": p.UpdatedAt,
 		}
 
-		// Get summary for balance info
 		summary, err := s.summaryRepo.FindByPeriod(p.ID)
 		if err == nil && summary != nil {
 			items["balance"] = summary.Balance
@@ -57,8 +59,7 @@ func (s *PeriodService) List() ([]map[string]interface{}, error) {
 	return result, nil
 }
 
-// Close closes a period for a given year/month.
-func (s *PeriodService) Close(year, month int) (*domain.Period, error) {
+func (s *periodService) Close(year, month int) (*domain.Period, error) {
 	period, err := s.periodRepo.FindByYearMonth(year, month)
 	if err != nil {
 		return nil, err

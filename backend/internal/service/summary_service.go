@@ -6,27 +6,29 @@ import (
 	"strings"
 
 	"github.com/chamoouske/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/repository"
 )
 
-// SummaryService handles business logic for monthly summaries.
-type SummaryService struct {
-	summaryRepo  domain.SummaryRepository
-	periodRepo   domain.PeriodRepository
+type SummaryService interface {
+	GetByPeriod(periodStr string) (*domain.MonthlySummary, error)
 }
 
-// NewSummaryService creates a new SummaryService.
+type summaryService struct {
+	summaryRepo repository.SummaryRepository
+	periodRepo  repository.PeriodRepository
+}
+
 func NewSummaryService(
-	summaryRepo domain.SummaryRepository,
-	periodRepo domain.PeriodRepository,
-) *SummaryService {
-	return &SummaryService{
-		summaryRepo:  summaryRepo,
-		periodRepo:   periodRepo,
+	summaryRepo repository.SummaryRepository,
+	periodRepo repository.PeriodRepository,
+) SummaryService {
+	return &summaryService{
+		summaryRepo: summaryRepo,
+		periodRepo:  periodRepo,
 	}
 }
 
-// GetByPeriod returns the summary for a given period string (YYYY-MM).
-func (s *SummaryService) GetByPeriod(periodStr string) (*domain.MonthlySummary, error) {
+func (s *summaryService) GetByPeriod(periodStr string) (*domain.MonthlySummary, error) {
 	periodStr = strings.TrimSpace(periodStr)
 	if periodStr == "" {
 		return nil, fmt.Errorf("parâmetro 'period' é obrigatório")
@@ -47,16 +49,13 @@ func (s *SummaryService) GetByPeriod(periodStr string) (*domain.MonthlySummary, 
 		return nil, fmt.Errorf("mês inválido: %s", parts[1])
 	}
 
-	// Find period
 	period, err := s.periodRepo.FindByYearMonth(year, month)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar período: %w", err)
 	}
 	if period == nil {
-		// Return empty summary if period doesn't exist
 		return &domain.MonthlySummary{
-			PeriodID:  0,
-			Balance:   0,
+			Balance: 0,
 		}, nil
 	}
 
@@ -66,8 +65,8 @@ func (s *SummaryService) GetByPeriod(periodStr string) (*domain.MonthlySummary, 
 	}
 	if summary == nil {
 		return &domain.MonthlySummary{
-			PeriodID:  period.ID,
-			Balance:   0,
+			PeriodID: period.ID,
+			Balance:  0,
 		}, nil
 	}
 

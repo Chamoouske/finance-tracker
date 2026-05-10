@@ -7,18 +7,15 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
-// CategoryHandler handles HTTP requests for categories.
-type CategoryHandler struct {
-	service *service.CategoryService
+type categoryHandler struct {
+	service service.CategoryService
 }
 
-// NewCategoryHandler creates a new CategoryHandler.
-func NewCategoryHandler(service *service.CategoryService) *CategoryHandler {
-	return &CategoryHandler{service: service}
+func NewCategoryHandler(service service.CategoryService) *categoryHandler {
+	return &categoryHandler{service: service}
 }
 
-// List handles GET /api/categories.
-func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *categoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	groups, err := h.service.List()
 	if err != nil {
 		respondError(w, 500, "Erro ao listar categorias: "+err.Error())
@@ -30,8 +27,7 @@ func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Create handles POST /api/categories.
-func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *categoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GroupID     int64   `json:"groupId"`
 		Name        string  `json:"name"`
@@ -64,8 +60,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondSuccess(w, 201, c)
 }
 
-// Update handles PATCH /api/categories/{id}.
-func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *categoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := extractID(r)
 	if err != nil {
 		respondError(w, 400, "ID inválido")
@@ -78,14 +73,12 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch existing category
 	existing, err := h.service.FindByID(id)
 	if err != nil {
 		respondError(w, 404, err.Error())
 		return
 	}
 
-	// Apply updates
 	if v, ok := updates["name"]; ok {
 		existing.Name, _ = v.(string)
 	}
@@ -116,8 +109,7 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondSuccess(w, 200, existing)
 }
 
-// Delete handles DELETE /api/categories/{id}.
-func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *categoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := extractID(r)
 	if err != nil {
 		respondError(w, 400, "ID inválido")

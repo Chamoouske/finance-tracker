@@ -7,18 +7,15 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
-// PeriodHandler handles HTTP requests for periods.
-type PeriodHandler struct {
-	service *service.PeriodService
+type periodHandler struct {
+	service service.PeriodService
 }
 
-// NewPeriodHandler creates a new PeriodHandler.
-func NewPeriodHandler(service *service.PeriodService) *PeriodHandler {
-	return &PeriodHandler{service: service}
+func NewPeriodHandler(service service.PeriodService) *periodHandler {
+	return &periodHandler{service: service}
 }
 
-// List handles GET /api/periods.
-func (h *PeriodHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *periodHandler) List(w http.ResponseWriter, r *http.Request) {
 	periods, err := h.service.List()
 	if err != nil {
 		respondError(w, 500, "Erro ao listar períodos: "+err.Error())
@@ -30,8 +27,7 @@ func (h *PeriodHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Close handles POST /api/periods/close.
-func (h *PeriodHandler) Close(w http.ResponseWriter, r *http.Request) {
+func (h *periodHandler) Close(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Year  int `json:"year"`
 		Month int `json:"month"`
@@ -42,7 +38,6 @@ func (h *PeriodHandler) Close(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate year and month
 	if req.Year < 2020 || req.Year > 2100 {
 		respondError(w, 400, "ano inválido. Use um ano entre 2020 e 2100")
 		return

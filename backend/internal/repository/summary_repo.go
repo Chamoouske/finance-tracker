@@ -8,18 +8,20 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
-// SummaryRepo implements domain.SummaryRepository.
-type SummaryRepo struct {
+type SummaryRepository interface {
+	FindByPeriod(periodID int64) (*domain.MonthlySummary, error)
+	Recalculate(periodID int64) error
+}
+
+type sqliteSummaryRepository struct {
 	db *sql.DB
 }
 
-// NewSummaryRepo creates a new SummaryRepo.
-func NewSummaryRepo(db *sql.DB) *SummaryRepo {
-	return &SummaryRepo{db: db}
+func NewSummaryRepository(db *sql.DB) SummaryRepository {
+	return &sqliteSummaryRepository{db: db}
 }
 
-// FindByPeriod returns the monthly summary for a given period.
-func (r *SummaryRepo) FindByPeriod(periodID int64) (*domain.MonthlySummary, error) {
+func (r *sqliteSummaryRepository) FindByPeriod(periodID int64) (*domain.MonthlySummary, error) {
 	s := &domain.MonthlySummary{}
 	var createdAt, updatedAt string
 	err := r.db.QueryRow(
@@ -36,13 +38,12 @@ func (r *SummaryRepo) FindByPeriod(periodID int64) (*domain.MonthlySummary, erro
 		}
 		return nil, fmt.Errorf("find summary by period: %w", err)
 	}
-	s.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	s.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+	s.CreatedAt, _ = parseTime(createdAt)
+	s.UpdatedAt, _ = parseTime(updatedAt)
 	return s, nil
 }
 
-// Recalculate recalculates the monthly summary for a given period.
-func (r *SummaryRepo) Recalculate(periodID int64) error {
+func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 	query := `
 	SELECT
 		COALESCE(SUM(CASE WHEN cg.type = 'revenue' THEN t.amount ELSE 0 END), 0),
@@ -67,9 +68,8 @@ func (r *SummaryRepo) Recalculate(periodID int64) error {
 
 	balance := revenueTotal + investmentTotal - fixedTotal - variableTotal - extraTotal - additionalTotal
 
-	now := time.Now().Format("2006-01-02 15:04:05")
+	now := formatTime(time.Now())
 
-	// UPSERT: try update first, then insert if not exists
 	result, err := r.db.Exec(
 		`UPDATE monthly_summaries SET
 			revenue_total = ?, investment_total = ?,
@@ -85,7 +85,6 @@ func (r *SummaryRepo) Recalculate(periodID int64) error {
 	}
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		// Insert new row
 		_, err = r.db.Exec(
 			`INSERT INTO monthly_summaries (period_id, revenue_total, investment_total,
 				fixed_expense_total, variable_expense_total, extra_expense_total,

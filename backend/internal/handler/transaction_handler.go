@@ -8,18 +8,15 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
-// TransactionHandler handles HTTP requests for transactions.
-type TransactionHandler struct {
-	service *service.TransactionService
+type transactionHandler struct {
+	service service.TransactionService
 }
 
-// NewTransactionHandler creates a new TransactionHandler.
-func NewTransactionHandler(service *service.TransactionService) *TransactionHandler {
-	return &TransactionHandler{service: service}
+func NewTransactionHandler(service service.TransactionService) *transactionHandler {
+	return &transactionHandler{service: service}
 }
 
-// Create handles POST /api/transactions.
-func (h *TransactionHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *transactionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CategoryID int64  `json:"categoryId"`
 		Date       string `json:"date"`
@@ -58,8 +55,7 @@ func (h *TransactionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// List handles GET /api/transactions?period=YYYY-MM.
-func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *transactionHandler) List(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		respondError(w, 400, "parâmetro 'period' é obrigatório")
@@ -79,8 +75,7 @@ func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Update handles PATCH /api/transactions/{id}.
-func (h *TransactionHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *transactionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := extractID(r)
 	if err != nil {
 		respondError(w, 400, "ID inválido")
@@ -112,8 +107,7 @@ func (h *TransactionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Delete handles DELETE /api/transactions/{id}.
-func (h *TransactionHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *transactionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := extractID(r)
 	if err != nil {
 		respondError(w, 400, "ID inválido")
@@ -138,4 +132,3 @@ func (h *TransactionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		"summary": summary,
 	})
 }
-

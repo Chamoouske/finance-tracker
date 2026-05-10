@@ -6,18 +6,15 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/service"
 )
 
-// SummaryHandler handles HTTP requests for monthly summaries.
-type SummaryHandler struct {
-	service *service.SummaryService
+type summaryHandler struct {
+	service service.SummaryService
 }
 
-// NewSummaryHandler creates a new SummaryHandler.
-func NewSummaryHandler(service *service.SummaryService) *SummaryHandler {
-	return &SummaryHandler{service: service}
+func NewSummaryHandler(service service.SummaryService) *summaryHandler {
+	return &summaryHandler{service: service}
 }
 
-// Get handles GET /api/summary?period=YYYY-MM.
-func (h *SummaryHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (h *summaryHandler) Get(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		respondError(w, 400, "parâmetro 'period' é obrigatório")

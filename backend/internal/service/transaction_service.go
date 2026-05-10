@@ -1,34 +1,36 @@
 package service
 
 import (
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/chamoouske/finance-tracker/internal/domain"
+	"github.com/chamoouske/finance-tracker/internal/repository"
 )
 
-// TransactionService handles business logic for transactions.
-type TransactionService struct {
-	db              *sql.DB
-	transactionRepo domain.TransactionRepository
-	categoryRepo    domain.CategoryRepository
-	periodRepo      domain.PeriodRepository
-	summaryRepo     domain.SummaryRepository
+type TransactionService interface {
+	Create(t *domain.Transaction) (*domain.Transaction, *domain.MonthlySummary, error)
+	List(periodStr string) ([]*domain.Transaction, error)
+	Update(id int64, updates map[string]interface{}) (*domain.Transaction, *domain.MonthlySummary, error)
+	Delete(id int64) (*domain.MonthlySummary, error)
 }
 
-// NewTransactionService creates a new TransactionService.
+type transactionService struct {
+	transactionRepo repository.TransactionRepository
+	categoryRepo    repository.CategoryRepository
+	periodRepo      repository.PeriodRepository
+	summaryRepo     repository.SummaryRepository
+}
+
 func NewTransactionService(
-	db *sql.DB,
-	transactionRepo domain.TransactionRepository,
-	categoryRepo domain.CategoryRepository,
-	periodRepo domain.PeriodRepository,
-	summaryRepo domain.SummaryRepository,
-) *TransactionService {
-	return &TransactionService{
-		db:              db,
+	transactionRepo repository.TransactionRepository,
+	categoryRepo repository.CategoryRepository,
+	periodRepo repository.PeriodRepository,
+	summaryRepo repository.SummaryRepository,
+) TransactionService {
+	return &transactionService{
 		transactionRepo: transactionRepo,
 		categoryRepo:    categoryRepo,
 		periodRepo:      periodRepo,
@@ -36,26 +38,21 @@ func NewTransactionService(
 	}
 }
 
-// Create creates a new transaction with validations.
-func (s *TransactionService) Create(t *domain.Transaction) (*domain.Transaction, *domain.MonthlySummary, error) {
-	// Validate note
+func (s *transactionService) Create(t *domain.Transaction) (*domain.Transaction, *domain.MonthlySummary, error) {
 	t.Note = strings.TrimSpace(t.Note)
 	if t.Note == "" {
 		return nil, nil, fmt.Errorf("o campo 'note' é obrigatório e deve ter pelo menos 1 caractere")
 	}
 
-	// Validate date
 	year, month, err := getPeriodFromDate(t.Date)
 	if err != nil {
 		return nil, nil, fmt.Errorf("data inválida: %w", err)
 	}
 
-	// Validate amount
 	if t.Amount <= 0 {
 		return nil, nil, fmt.Errorf("o valor deve ser positivo")
 	}
 
-	// Validate type
 	validTypes := map[domain.TransactionType]bool{
 		domain.TransactionIncome:     true,
 		domain.TransactionInvestment: true,
@@ -65,7 +62,6 @@ func (s *TransactionService) Create(t *domain.Transaction) (*domain.Transaction,
 		return nil, nil, fmt.Errorf("tipo inválido: %s", t.Type)
 	}
 
-	// Validate category exists and is active
 	category, err := s.categoryRepo.FindByID(t.CategoryID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("categoria não encontrada: %d", t.CategoryID)
@@ -74,47 +70,31 @@ func (s *TransactionService) Create(t *domain.Transaction) (*domain.Transaction,
 		return nil, nil, fmt.Errorf("categoria inativa: %d", t.CategoryID)
 	}
 
-	// Get or create period
 	period, err := s.periodRepo.GetOrCreate(year, month)
 	if err != nil {
 		return nil, nil, fmt.Errorf("erro ao obter período: %w", err)
 	}
 
-	// Check if period is closed
 	if period.ClosedAt != nil {
 		return nil, nil, fmt.Errorf("período %04d-%02d já está fechado. Não é possível adicionar transações", year, month)
 	}
 
 	t.PeriodID = period.ID
 
-	// Execute in transaction
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, nil, fmt.Errorf("erro ao iniciar transação: %w", err)
-	}
-	defer tx.Rollback()
-
-	if err := s.transactionRepo.Create(tx, t); err != nil {
+	if err := s.transactionRepo.Create(t); err != nil {
 		return nil, nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, nil, fmt.Errorf("erro ao commitar transação: %w", err)
-	}
-
-	// Recalculate summary
 	if err := s.summaryRepo.Recalculate(period.ID); err != nil {
 		return nil, nil, fmt.Errorf("erro ao recalcular resumo: %w", err)
 	}
 
-	// Fetch updated summary
 	summary, _ := s.summaryRepo.FindByPeriod(period.ID)
 
 	return t, summary, nil
 }
 
-// List returns transactions for a given period string (YYYY-MM).
-func (s *TransactionService) List(periodStr string) ([]*domain.Transaction, error) {
+func (s *transactionService) List(periodStr string) ([]*domain.Transaction, error) {
 	periodStr = strings.TrimSpace(periodStr)
 	if periodStr == "" {
 		return nil, fmt.Errorf("parâmetro 'period' é obrigatório")
@@ -138,15 +118,12 @@ func (s *TransactionService) List(periodStr string) ([]*domain.Transaction, erro
 	return s.transactionRepo.FindByPeriodStr(year, month)
 }
 
-// Update updates an existing transaction.
-func (s *TransactionService) Update(id int64, updates map[string]interface{}) (*domain.Transaction, *domain.MonthlySummary, error) {
-	// Fetch existing transaction
+func (s *transactionService) Update(id int64, updates map[string]interface{}) (*domain.Transaction, *domain.MonthlySummary, error) {
 	existing, err := s.transactionRepo.FindByID(id)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Validate period is not closed
 	period, err := s.periodRepo.FindByID(existing.PeriodID)
 	if err != nil {
 		return nil, nil, err
@@ -155,12 +132,10 @@ func (s *TransactionService) Update(id int64, updates map[string]interface{}) (*
 		return nil, nil, fmt.Errorf("período %04d-%02d já está fechado. Não é possível alterar transações", period.Year, period.Month)
 	}
 
-	// Apply updates
 	newPeriodID := existing.PeriodID
 	if v, ok := updates["categoryId"]; ok {
 		catID, _ := v.(float64)
 		existing.CategoryID = int64(catID)
-		// Validate category
 		category, err := s.categoryRepo.FindByID(existing.CategoryID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("categoria não encontrada: %d", existing.CategoryID)
@@ -176,7 +151,6 @@ func (s *TransactionService) Update(id int64, updates map[string]interface{}) (*
 			return nil, nil, fmt.Errorf("data inválida: %w", err)
 		}
 		existing.Date = dateStr
-		// Get or create new period
 		newPeriod, err := s.periodRepo.GetOrCreate(year, month)
 		if err != nil {
 			return nil, nil, err
@@ -211,21 +185,17 @@ func (s *TransactionService) Update(id int64, updates map[string]interface{}) (*
 		existing.Note = note
 	}
 
-	existing.PeriodID = newPeriodID
-
-	// If period changed, check if old period needs summary recalc
 	oldPeriodID := period.ID
+	existing.PeriodID = newPeriodID
 
 	if err := s.transactionRepo.Update(existing); err != nil {
 		return nil, nil, err
 	}
 
-	// Recalculate summary for new period
 	if err := s.summaryRepo.Recalculate(existing.PeriodID); err != nil {
 		return nil, nil, fmt.Errorf("erro ao recalcular resumo: %w", err)
 	}
 
-	// If period changed, recalculate old period summary too
 	if oldPeriodID != existing.PeriodID {
 		if err := s.summaryRepo.Recalculate(oldPeriodID); err != nil {
 			return nil, nil, fmt.Errorf("erro ao recalcular resumo do período anterior: %w", err)
@@ -237,15 +207,12 @@ func (s *TransactionService) Update(id int64, updates map[string]interface{}) (*
 	return existing, summary, nil
 }
 
-// Delete deletes a transaction and recalculates the summary.
-func (s *TransactionService) Delete(id int64) (*domain.MonthlySummary, error) {
-	// Fetch existing transaction
+func (s *transactionService) Delete(id int64) (*domain.MonthlySummary, error) {
 	existing, err := s.transactionRepo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate period is not closed
 	period, err := s.periodRepo.FindByID(existing.PeriodID)
 	if err != nil {
 		return nil, err
@@ -258,7 +225,6 @@ func (s *TransactionService) Delete(id int64) (*domain.MonthlySummary, error) {
 		return nil, err
 	}
 
-	// Recalculate summary
 	if err := s.summaryRepo.Recalculate(existing.PeriodID); err != nil {
 		return nil, fmt.Errorf("erro ao recalcular resumo: %w", err)
 	}
@@ -267,16 +233,13 @@ func (s *TransactionService) Delete(id int64) (*domain.MonthlySummary, error) {
 	return summary, nil
 }
 
-// getPeriodFromDate extracts year and month from an ISO date string.
 func getPeriodFromDate(date string) (int, int, error) {
 	if len(date) < 7 {
 		return 0, 0, fmt.Errorf("formato de data inválido. Use YYYY-MM-DD")
 	}
 
-	// Try to parse the date
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
-		// Try just YYYY-MM
 		t, err = time.Parse("2006-01", date)
 		if err != nil {
 			return 0, 0, fmt.Errorf("formato de data inválido. Use YYYY-MM-DD (ex: 2026-05-10): %w", err)

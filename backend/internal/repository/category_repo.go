@@ -8,19 +8,24 @@ import (
 	"github.com/chamoouske/finance-tracker/internal/domain"
 )
 
-// CategoryRepo implements domain.CategoryRepository.
-type CategoryRepo struct {
+type CategoryRepository interface {
+	FindAll() ([]*domain.CategoryGroup, error)
+	FindByID(id int64) (*domain.Category, error)
+	FindByGroupID(groupID int64) ([]*domain.Category, error)
+	Create(c *domain.Category) error
+	Update(c *domain.Category) error
+	Delete(id int64) error
+}
+
+type sqliteCategoryRepository struct {
 	db *sql.DB
 }
 
-// NewCategoryRepo creates a new CategoryRepo.
-func NewCategoryRepo(db *sql.DB) *CategoryRepo {
-	return &CategoryRepo{db: db}
+func NewCategoryRepository(db *sql.DB) CategoryRepository {
+	return &sqliteCategoryRepository{db: db}
 }
 
-// FindAll returns all category groups with their categories.
-func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
-	// Fetch groups
+func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 	groupRows, err := r.db.Query(
 		`SELECT id, name, type, sort_order, created_at FROM category_groups ORDER BY sort_order`,
 	)
@@ -36,7 +41,7 @@ func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
 		if err := groupRows.Scan(&g.ID, &g.Name, &g.Type, &g.SortOrder, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan category group: %w", err)
 		}
-		g.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		g.CreatedAt, _ = parseTime(createdAt)
 		groups = append(groups, g)
 	}
 
@@ -44,7 +49,6 @@ func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
 		return groups, nil
 	}
 
-	// Fetch categories for all groups
 	catRows, err := r.db.Query(
 		`SELECT c.id, c.group_id, c.name, c.expense_type, c.sort_order, c.active, c.created_at, c.updated_at
 		 FROM categories c ORDER BY c.sort_order`,
@@ -54,7 +58,6 @@ func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
 	}
 	defer catRows.Close()
 
-	// Build a map of groupID -> categories
 	groupMap := make(map[int64]*domain.CategoryGroup)
 	for _, g := range groups {
 		groupMap[g.ID] = g
@@ -73,8 +76,8 @@ func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
 			cat.ExpenseType = &et
 		}
 		cat.Active = active == 1
-		cat.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-		cat.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+		cat.CreatedAt, _ = parseTime(createdAt)
+		cat.UpdatedAt, _ = parseTime(updatedAt)
 
 		if g, ok := groupMap[cat.GroupID]; ok {
 			g.Categories = append(g.Categories, cat)
@@ -84,8 +87,7 @@ func (r *CategoryRepo) FindAll() ([]*domain.CategoryGroup, error) {
 	return groups, nil
 }
 
-// FindByID returns a category by its ID.
-func (r *CategoryRepo) FindByID(id int64) (*domain.Category, error) {
+func (r *sqliteCategoryRepository) FindByID(id int64) (*domain.Category, error) {
 	cat := &domain.Category{}
 	var expenseType sql.NullString
 	var createdAt, updatedAt string
@@ -105,13 +107,12 @@ func (r *CategoryRepo) FindByID(id int64) (*domain.Category, error) {
 		cat.ExpenseType = &et
 	}
 	cat.Active = active == 1
-	cat.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	cat.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+	cat.CreatedAt, _ = parseTime(createdAt)
+	cat.UpdatedAt, _ = parseTime(updatedAt)
 	return cat, nil
 }
 
-// FindByGroupID returns categories belonging to a group.
-func (r *CategoryRepo) FindByGroupID(groupID int64) ([]*domain.Category, error) {
+func (r *sqliteCategoryRepository) FindByGroupID(groupID int64) ([]*domain.Category, error) {
 	rows, err := r.db.Query(
 		`SELECT id, group_id, name, expense_type, sort_order, active, created_at, updated_at
 		 FROM categories WHERE group_id = ? ORDER BY sort_order`, groupID,
@@ -135,16 +136,15 @@ func (r *CategoryRepo) FindByGroupID(groupID int64) ([]*domain.Category, error) 
 			cat.ExpenseType = &et
 		}
 		cat.Active = active == 1
-		cat.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-		cat.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+		cat.CreatedAt, _ = parseTime(createdAt)
+		cat.UpdatedAt, _ = parseTime(updatedAt)
 		categories = append(categories, cat)
 	}
 	return categories, nil
 }
 
-// Create inserts a new category.
-func (r *CategoryRepo) Create(c *domain.Category) error {
-	now := time.Now().Format("2006-01-02 15:04:05")
+func (r *sqliteCategoryRepository) Create(c *domain.Category) error {
+	now := formatTime(time.Now())
 	var expenseType *string
 	if c.ExpenseType != nil {
 		s := string(*c.ExpenseType)
@@ -166,14 +166,13 @@ func (r *CategoryRepo) Create(c *domain.Category) error {
 	}
 	id, _ := result.LastInsertId()
 	c.ID = id
-	c.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", now)
+	c.CreatedAt, _ = parseTime(now)
 	c.UpdatedAt = c.CreatedAt
 	return nil
 }
 
-// Update updates an existing category.
-func (r *CategoryRepo) Update(c *domain.Category) error {
-	now := time.Now().Format("2006-01-02 15:04:05")
+func (r *sqliteCategoryRepository) Update(c *domain.Category) error {
+	now := formatTime(time.Now())
 	var expenseType *string
 	if c.ExpenseType != nil {
 		s := string(*c.ExpenseType)
@@ -197,12 +196,11 @@ func (r *CategoryRepo) Update(c *domain.Category) error {
 	if rows == 0 {
 		return fmt.Errorf("category not found: %d", c.ID)
 	}
-	c.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", now)
+	c.UpdatedAt, _ = parseTime(now)
 	return nil
 }
 
-// Delete removes a category by ID.
-func (r *CategoryRepo) Delete(id int64) error {
+func (r *sqliteCategoryRepository) Delete(id int64) error {
 	result, err := r.db.Exec(`DELETE FROM categories WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete category: %w", err)
