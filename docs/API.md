@@ -21,9 +21,11 @@
    - [Fechar Período](#32-fechar-período)
 4. [Summary](#4-summary)
    - [Obter Resumo Mensal](#41-obter-resumo-mensal)
-5. [Tratamento de Erros](#5-tratamento-de-erros)
-6. [Exemplos de Uso (curl)](#6-exemplos-de-uso-curl)
-7. [Estrutura de Rotas (Go Router)](#7-estrutura-de-rotas-go-router)
+5. [Balanço](#5-balanço)
+   - [Obter Snapshot do Balanço](#51-obter-snapshot-do-balanço)
+6. [Tratamento de Erros](#6-tratamento-de-erros)
+7. [Exemplos de Uso (curl)](#7-exemplos-de-uso-curl)
+8. [Estrutura de Rotas (Go Router)](#8-estrutura-de-rotas-go-router)
 
 ---
 
@@ -687,7 +689,64 @@ balance = revenue_total + investment_total - fixed_expense_total - variable_expe
 
 ---
 
-## 5. Tratamento de Erros
+## 5. Balanço
+
+### 5.1 Obter Snapshot do Balanço
+
+Retorna o snapshot atual do balanço geral (soma agregada de todos os períodos).
+
+**Endpoint:** `GET /api/balance`
+
+**Response** `200 OK`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "balance": {
+      "id": "0194f2d1-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "total_balance": 15000.00,
+      "total_income": 50000.00,
+      "total_expense": 35000.00,
+      "total_credit": 20000.00,
+      "total_debit": 15000.00,
+      "month_count": 12,
+      "calculated_at": "2026-05-12T10:00:00-03:00",
+      "created_at": "2026-05-12T10:00:00-03:00"
+    }
+  }
+}
+```
+
+**Campos do `balance`:**
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | string (UUID) | UUID do snapshot (PostgreSQL) ou ID auto-increment (SQLite) |
+| `total_balance` | number | Balanço geral (total_income - total_expense) |
+| `total_income` | number | Soma total de receitas + investimentos |
+| `total_expense` | number | Soma total de despesas (fixas + variáveis + extras + adicionais) |
+| `total_credit` | number | Soma total de crédito (reservado, atualmente 0) |
+| `total_debit` | number | Soma total de débito (reservado, atualmente 0) |
+| `month_count` | integer | Quantidade de meses considerados no cálculo |
+| `calculated_at` | string | Data/hora do último cálculo (ISO 8601) |
+| `created_at` | string | Data/hora de criação do registro (ISO 8601) |
+
+**Response** `500 Internal Server Error`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "get latest balance snapshot: ..."
+  }
+}
+```
+
+---
+
+## 6. Tratamento de Erros
 
 Todos os endpoints seguem o mesmo formato de erro:
 
@@ -765,6 +824,33 @@ curl "http://localhost:8080/api/summary?period=2026-05"
 curl -X POST http://localhost:8080/api/periods/close \
   -H "Content-Type: application/json" \
   -d '{"year": 2026, "month": 4}'
+```
+
+#### Obter snapshot do balanço geral
+
+```bash
+curl "http://localhost:8080/api/balance"
+```
+
+Resposta esperada: `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "balance": {
+      "id": "1",
+      "total_balance": 380000.00,
+      "total_income": 500000.00,
+      "total_expense": 120000.00,
+      "total_credit": 0,
+      "total_debit": 0,
+      "month_count": 1,
+      "calculated_at": "2026-05-12T10:00:00Z",
+      "created_at": "2026-05-12T10:00:00Z"
+    }
+  }
+}
 ```
 
 ### Cenários de Erro
@@ -852,8 +938,6 @@ Em caso de falha no banco de dados, resposta: `500 Internal Server Error`
 }
 ```
 
----
-
 ## 7. Estrutura de Rotas (Go Router)
 
 | Método | Path | Handler |
@@ -865,9 +949,12 @@ Em caso de falha no banco de dados, resposta: `500 Internal Server Error`
 | `GET` | `/api/categories` | `category_handler.List` |
 | `POST` | `/api/categories` | `category_handler.Create` |
 | `PATCH` | `/api/categories/{id}` | `category_handler.Update` |
+| `DELETE` | `/api/categories/{id}` | `category_handler.Delete` |
 | `GET` | `/api/periods` | `period_handler.List` |
 | `POST` | `/api/periods/close` | `period_handler.Close` |
 | `GET` | `/api/summary` | `summary_handler.Get` |
+| `GET` | `/api/balance` | `balance_handler.GetBalance` |
+| `GET` | `/api/health` | inline (health check) |
 
 No Go 1.22+, o `http.ServeMux` suporta pattern matching nativo:
 
@@ -883,6 +970,6 @@ mux.HandleFunc("DELETE /api/transactions/{id}", h.transactionHandler.Delete)
 ## Notas Importantes
 
 - **Criação automática de períodos**: Períodos (meses) são criados automaticamente pelo backend ao inserir a primeira transação de um determinado mês/ano. Não existe um endpoint `POST /api/periods` para criação manual de períodos.
-- **Valores monetários**: Todos os valores são expressos em **centavos** (int64). Exemplo: R$ 1.500,00 → `150000`.
+- **Valores monetários**: Todos os valores são expressos em **centavos** (int64) nas tabelas `transactions` e `monthly_summaries`. Exemplo: R$ 1.500,00 → `150000`. No snapshot `balance_snapshots`, os valores são `REAL`/`NUMERIC` (float).
 - **Datas**: O formato de data utilizado é `YYYY-MM-DD` (ISO 8601).
 - **Fechamento de período**: Uma vez que um período é fechado (`POST /api/periods/close`), nenhuma transação pode ser criada, alterada ou excluída naquele período.

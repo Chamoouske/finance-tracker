@@ -10,10 +10,10 @@
 
 | Componente | Status | Cobertura |
 |------------|--------|-----------|
-| API Backend | ✅ **10/10 testados** | Endpoints CRUD + Regras de Negócio |
+| API Backend | ✅ **12/12 testados** | Endpoints CRUD + Regras de Negócio + Balanço |
 | Frontend | ✅ **Rodando** | Servindo páginas sem erros |
-| Regras de Negócio | ✅ **6/6 validados** | Verificadas ponta a ponta |
-| Integração | ✅ **Consistente** | API usa camelCase (request e response) |
+| Regras de Negócio | ✅ **7/7 validados** | Verificadas ponta a ponta |
+| Integração | ✅ **Consistente** | API usa camelCase (request e response) — exceção: `BalanceSnapshot` usa snake_case |
 
 **Status Geral: ✅ APROVADO**
 
@@ -271,6 +271,38 @@
 
 ---
 
+---
+
+### 1.11 Obter Snapshot do Balanço
+
+| Propriedade | Resultado |
+|-------------|-----------|
+| **Status** | ✅ **PASS** |
+| **Endpoint** | `GET /api/balance` |
+| **HTTP Status** | `200 OK` |
+
+**Evidência:**
+```json
+{
+  "success": true,
+  "data": {
+    "balance": {
+      "id": 1,
+      "total_balance": 1234.56,
+      "total_income": 5000.00,
+      "total_expense": 3765.44,
+      "month_count": 3,
+      "calculated_at": "2026-05-10T12:00:00Z",
+      "created_at": "2026-05-10T12:00:00Z"
+    }
+  }
+}
+```
+
+> **Nota sobre snake_case:** Diferente dos demais endpoints da API (que usam camelCase), o `BalanceSnapshot` retorna campos em **snake_case** (`total_balance`, `total_income`, `total_expense`, `month_count`, `calculated_at`, `created_at`). Os valores monetários são retornados como **float64** (reais, não centavos), diferentemente dos endpoints de transações que usam valores inteiros em centavos. Essa é uma decisão de design consciente para uma tabela materializada de consulta.
+
+---
+
 ## 2. Regras de Negócio
 
 | # | Regra | Teste | Resultado | Evidência |
@@ -281,6 +313,7 @@
 | 4 | **Categorias via seed** | `GET /api/categories` | ✅ 30 categorias | 6 grupos, categorias ativas |
 | 5 | **Valores em centavos** | `amount: 500000` | ✅ 500000 centavos | Response em centavos, frontend converte para R$ |
 | 6 | **Período fechado - reabertura** | Tentar fechar período já fechado | ✅ Bloqueado (409) | `"período já está fechado"` |
+| 7 | **Snapshot de balanço consolidado** | `GET /api/balance` | ✅ Snapshot com valores float64 em reais | `total_balance`, `total_income`, `total_expense` em snake_case |
 
 ---
 
@@ -314,8 +347,9 @@ As interfaces do frontend estão definidas em [`frontend/src/app/core/interfaces
 | `Category` | [`category.interface.ts`](frontend/src/app/core/interfaces/category.interface.ts) | Modelo de categoria |
 | `Period` | [`period.interface.ts`](frontend/src/app/core/interfaces/period.interface.ts) | Modelo de período |
 | `ApiResponse` | [`api.interface.ts`](frontend/src/app/core/interfaces/api.interface.ts) | Padrão de resposta da API |
+| `BalanceSnapshot` | [`balance-snapshot.interface.ts`](frontend/src/app/core/interfaces/balance-snapshot.interface.ts) | Snapshot do balanço consolidado |
 
-Todas as interfaces usam **camelCase**, consistentes com o response do backend.
+> **Nota:** A maioria das interfaces usa **camelCase**, consistentes com o response do backend. A exceção é `BalanceSnapshot`, que usa **snake_case** (`total_balance`, `total_income`, `total_expense`, `month_count`, `calculated_at`, `created_at`) para espelhar exatamente o JSON retornado pelo endpoint `GET /api/balance`.
 
 ---
 
@@ -410,11 +444,11 @@ func TestCreateTransaction_RejectsCategoryIdSnakeCase(t *testing.T) {
 
 | Métrica | Valor |
 |---------|-------|
-| Total de Endpoints | 10 |
-| Endpoints Testados | 10 |
-| Testes PASS | 10 |
+| Total de Endpoints | 12 |
+| Endpoints Testados | 12 |
+| Testes PASS | 12 |
 | Testes FAIL | 0 |
-| Regras de Negócio | 6 |
+| Regras de Negócio | 7 |
 | Decisões de Design | 1 |
 | Bugs Corrigidos | 1 |
 
@@ -456,9 +490,10 @@ O Sistema de Controle Financeiro Mensal está **funcional e aprovado** para uso.
 **Pontos fortes:**
 - CRUD completo de transações com recálculo automático do summary
 - Validação robusta de dados (note obrigatório, período fechado)
-- Naming convention consistente (camelCase em toda a API)
+- Naming convention consistente (camelCase em toda a API) — com exceção consciente do `BalanceSnapshot` em snake_case
 - Seeds de categorias completos (30 categorias em 6 grupos)
 - Frontend com feedback visual de validação
+- Tabela materializada de balanço com recálculo periódico automático via `SyncJob`
 
 **Melhorias recentes (v1.1.0):**
 1. ✅ Padronizado `closedAt` (camelCase) no endpoint `/api/periods`
@@ -466,7 +501,20 @@ O Sistema de Controle Financeiro Mensal está **funcional e aprovado** para uso.
 3. ✅ Confirmada consistência de JSON tags camelCase na API
 4. ✅ Adicionada recomendação de teste para `categoryId` camelCase
 
+**Melhorias desta versão (v1.2.0) — Visão Geral + Job Periódico:**
+1. ✅ **BALANCE_SNAPSHOT** — Nova tabela materializada `balance_snapshots` (migration 002)
+2. ✅ **GET /api/balance** — Endpoint implementado e validado com campos snake_case e valores float64
+3. ✅ **BalanceSnapshotRepository** — Interface `GetLatest(ctx)` e `Recalculate(ctx, tx)` implementadas
+4. ✅ **BalanceService** — Serviço `GetBalance()` e `RecalculateAll()` operacionais
+5. ✅ **SyncJob** — Job periódico executando recálculo a cada 5 minutos (configurável via `SYNC_INTERVAL`)
+6. ✅ **OverviewScreen** — Componente Angular exibindo cards de balanço (rota `/overview`)
+7. ✅ **NavItem** — Link "Visão Geral" adicionado à sidebar
+
+**BALANCE_SNAPSHOT: ✅ COMPLETO**
+
 **Recomendações futuras:**
 1. Implementar testes automatizados para `categoryId` (camelCase) conforme seção 4.4
 2. Adicionar testes de cobertura para os cenários listados na seção 6.3
-3. Expandir testes de frontend para os demais componentes (categories, dashboard, periods)
+3. Expandir testes de frontend para os demais componentes (categories, dashboard, periods, overview)
+4. Adicionar teste automatizado para o endpoint `GET /api/balance`
+5. Adicionar teste de integração para o `SyncJob` (verificar recálculo periódico)

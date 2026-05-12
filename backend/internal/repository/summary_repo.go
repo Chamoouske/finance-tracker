@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -11,6 +12,7 @@ import (
 type SummaryRepository interface {
 	FindByPeriod(periodID int64) (*domain.MonthlySummary, error)
 	Recalculate(periodID int64) error
+	RecalculateAll(ctx context.Context, tx *sql.Tx) error
 }
 
 type sqliteSummaryRepository struct {
@@ -98,5 +100,61 @@ func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 		}
 	}
 
+	return nil
+}
+
+func (r *sqliteSummaryRepository) RecalculateAll(ctx context.Context, tx *sql.Tx) error {
+	ownTx := false
+	if tx == nil {
+		var err error
+		tx, err = r.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		ownTx = true
+		defer tx.Rollback()
+	}
+
+	// Use INSERT OR REPLACE (UPSERT) to recalculate all summaries at once
+	now := formatTime(time.Now())
+
+	query := `
+		INSERT INTO monthly_summaries
+			(period_id, revenue_total, investment_total,
+			 fixed_expense_total, variable_expense_total,
+			 extra_expense_total, additional_expense_total,
+			 balance, created_at, updated_at)
+		SELECT
+			p.id,
+			COALESCE(SUM(CASE WHEN cg.type = 'revenue' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN cg.type = 'investment' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN c.expense_type = 'fixed' AND cg.type = 'expense' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN c.expense_type = 'variable' AND cg.type = 'expense' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN c.expense_type = 'extra' AND cg.type = 'expense' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN c.expense_type = 'additional' AND cg.type = 'expense' THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN cg.type = 'revenue' OR cg.type = 'investment' THEN t.amount ELSE -t.amount END), 0),
+			?, ?
+		FROM periods p
+		LEFT JOIN transactions t ON t.period_id = p.id
+		LEFT JOIN categories c ON c.id = t.category_id
+		LEFT JOIN category_groups cg ON cg.id = c.group_id
+		GROUP BY p.id
+		ON CONFLICT(period_id) DO UPDATE SET
+			revenue_total = excluded.revenue_total,
+			investment_total = excluded.investment_total,
+			fixed_expense_total = excluded.fixed_expense_total,
+			variable_expense_total = excluded.variable_expense_total,
+			extra_expense_total = excluded.extra_expense_total,
+			additional_expense_total = excluded.additional_expense_total,
+			balance = excluded.balance,
+			updated_at = excluded.updated_at`
+
+	if _, err := tx.ExecContext(ctx, query, now, now); err != nil {
+		return fmt.Errorf("recalculate all summaries: %w", err)
+	}
+
+	if ownTx {
+		return tx.Commit()
+	}
 	return nil
 }

@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 
 	"github.com/chamoouske/finance-tracker/internal/handler"
+	"github.com/chamoouske/finance-tracker/internal/job"
 	"github.com/chamoouske/finance-tracker/internal/repository"
 	"github.com/chamoouske/finance-tracker/internal/service"
 )
@@ -25,16 +28,19 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
 	summaryRepo := repository.NewSummaryRepository(db)
+	balanceRepo := repository.NewBalanceSnapshotRepository(db)
 
 	transactionService := service.NewTransactionService(transactionRepo, categoryRepo, periodRepo, summaryRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	periodService := service.NewPeriodService(periodRepo, summaryRepo)
 	summaryService := service.NewSummaryService(summaryRepo, periodRepo)
+	balanceService := service.NewBalanceService(balanceRepo)
 
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	periodHandler := handler.NewPeriodHandler(periodService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
+	balanceHandler := handler.NewBalanceHandler(balanceService)
 
 	mux := http.NewServeMux()
 
@@ -52,6 +58,7 @@ func main() {
 	mux.HandleFunc("POST /api/periods/close", periodHandler.Close)
 
 	mux.HandleFunc("GET /api/summary", summaryHandler.Get)
+	mux.HandleFunc("GET /api/balance", balanceHandler.GetBalance)
 
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -66,6 +73,11 @@ func main() {
 		port = "8080"
 	}
 
+	// Inicia o SyncJob em background
+	syncInterval := getSyncInterval()
+	syncJob := job.NewSyncJob(summaryRepo, balanceRepo, db, syncInterval)
+	go syncJob.Start(context.Background())
+
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      corsHandler,
@@ -79,6 +91,19 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
+}
+
+func getSyncInterval() time.Duration {
+	envInterval := os.Getenv("SYNC_INTERVAL")
+	if envInterval == "" {
+		return 5 * time.Minute
+	}
+	seconds, err := strconv.Atoi(envInterval)
+	if err != nil {
+		log.Printf("Invalid SYNC_INTERVAL '%s', using default 5 minutes", envInterval)
+		return 5 * time.Minute
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func initDB() *sql.DB {
@@ -168,11 +193,17 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func migrationFile(driver string) string {
+func migrationFiles(driver string) []string {
 	if driver == "postgres" {
-		return filepath.Join("migrations", "001_initial.postgres.sql")
+		return []string{
+			filepath.Join("migrations", "001_initial.postgres.sql"),
+			filepath.Join("migrations", "002_balance_snapshot.postgres.sql"),
+		}
 	}
-	return filepath.Join("migrations", "001_initial.sql")
+	return []string{
+		filepath.Join("migrations", "001_initial.sql"),
+		filepath.Join("migrations", "002_balance_snapshot.sql"),
+	}
 }
 
 func seedFile(driver string) string {
@@ -183,15 +214,24 @@ func seedFile(driver string) string {
 }
 
 func runMigrations(db *sql.DB, driver string) error {
-	migrationPath := migrationFile(driver)
+	migrations := migrationFiles(driver)
+	for _, migrationPath := range migrations {
+		if err := runSingleMigration(db, migrationPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func runSingleMigration(db *sql.DB, migrationPath string) error {
 	data, err := os.ReadFile(migrationPath)
 	if err != nil {
-		return fmt.Errorf("read migration file: %w", err)
+		return fmt.Errorf("read migration file %s: %w", migrationPath, err)
 	}
 
 	_, err = db.Exec(string(data))
 	if err != nil {
-		return fmt.Errorf("execute migration: %w", err)
+		return fmt.Errorf("execute migration %s: %w", migrationPath, err)
 	}
 
 	return nil

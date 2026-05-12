@@ -11,6 +11,11 @@ export const routes: Routes = [
                 title: 'Dashboard - Finance Tracker',
             },
             {
+                path: 'overview',
+                loadComponent: () => import('./features/overview/overview').then((c) => c.default),
+                title: 'Visão Geral - Finance Tracker',
+            },
+            {
                 path: 'transactions',
                 loadComponent: () => import('./features/transactions/transactions-list').then((c) => c.default),
                 title: 'Transações - Finance Tracker',

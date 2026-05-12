@@ -1,3 +1,4 @@
+export * from './balance.service';
 export * from './base-api.service';
 export * from './category.service';
 export * from './transaction.service';

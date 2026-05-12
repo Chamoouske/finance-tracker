@@ -33,31 +33,40 @@ finance-tracker/
 │   │   │   ├── period.go
 │   │   │   ├── category.go           # CategoryGroup + Category
 │   │   │   ├── transaction.go
-│   │   │   └── summary.go
+│   │   │   ├── summary.go
+│   │   │   └── balance_snapshot.go   # BalanceSnapshot
 │   │   │
 │   │   ├── repository/               # Implementação SQLite/PostgreSQL das interfaces
 │   │   │   ├── helpers.go            # parseTime, formatTime
 │   │   │   ├── category_repo.go      # CategoryRepository + implementação
 │   │   │   ├── period_repo.go        # PeriodRepository + implementação
 │   │   │   ├── transaction_repo.go   # TransactionRepository + implementação
-│   │   │   └── summary_repo.go       # SummaryRepository + implementação
+│   │   │   ├── summary_repo.go       # SummaryRepository + implementação
+│   │   │   └── balance_snapshot_repo.go # BalanceSnapshotRepository + implementação
 │   │   │
 │   │   ├── service/                  # Lógica de negócio
 │   │   │   ├── transaction_service.go
 │   │   │   ├── category_service.go
 │   │   │   ├── period_service.go
-│   │   │   └── summary_service.go
+│   │   │   ├── summary_service.go
+│   │   │   └── balance_service.go    # BalanceService
 │   │   │
-│   │   └── handler/                  # Handlers HTTP (controllers)
-│   │       ├── helpers.go            # respondJSON, respondSuccess, respondError
-│   │       ├── transaction_handler.go
-│   │       ├── category_handler.go
-│   │       ├── period_handler.go
-│   │       └── summary_handler.go
+│   │   ├── handler/                  # Handlers HTTP (controllers)
+│   │   │   ├── helpers.go            # respondJSON, respondSuccess, respondError
+│   │   │   ├── transaction_handler.go
+│   │   │   ├── category_handler.go
+│   │   │   ├── period_handler.go
+│   │   │   ├── summary_handler.go
+│   │   │   └── balance_handler.go    # BalanceHandler
+│   │   │
+│   │   └── job/                      # Jobs periódicos em background
+│   │       └── sync_job.go           # SyncJob — recalcula summaries + snapshot
 │   │
 │   ├── migrations/
 │   │   ├── 001_initial.sql           # Schema SQLite
-│   │   └── 001_initial.postgres.sql  # Schema PostgreSQL
+│   │   ├── 001_initial.postgres.sql  # Schema PostgreSQL
+│   │   ├── 002_balance_snapshot.sql   # Balance snapshots (SQLite)
+│   │   └── 002_balance_snapshot.postgres.sql # Balance snapshots (PostgreSQL)
 │   │
 │   ├── seeds/
 │   │   ├── categories.sql            # Categorias padrão (SQLite)
@@ -164,6 +173,17 @@ erDiagram
     periods ||--o{ monthly_summaries : summarizes
     category_groups ||--o{ categories : groups
     categories ||--o{ transactions : categorizes
+    balance_snapshots {
+        id INTEGER PK "SQLite" || UUID PK "PostgreSQL"
+        total_balance REAL "agregado geral"
+        total_income REAL "soma receitas + investimentos"
+        total_expense REAL "soma despesas"
+        total_credit REAL "reservado"
+        total_debit REAL "reservado"
+        month_count INTEGER "qtde de meses"
+        calculated_at TEXT "último cálculo"
+        created_at TEXT "criação do registro"
+    }
 
     periods {
         id INTEGER PK
@@ -297,7 +317,43 @@ CREATE INDEX IF NOT EXISTS idx_categories_group ON categories(group_id);
 
 O arquivo [`seeds/categories.sql`](backend/seeds/categories.sql) contém 6 grupos de categorias (Receitas, Investimentos, Despesas Fixas, Despesas Variáveis, Despesas Extras, Despesas Adicionais) com 30 categorias no total. O seed é executado automaticamente na inicialização do backend se não houver grupos cadastrados.
 
-### 3.4 Suporte Dual SQLite + PostgreSQL
+### 3.4 Migration 002 — Balance Snapshots
+
+Adiciona a tabela `balance_snapshots` para armazenar o snapshot agregado do balanço geral (soma de todos os períodos). Executada automaticamente na inicialização do backend.
+
+**SQLite** ([`migrations/002_balance_snapshot.sql`](backend/migrations/002_balance_snapshot.sql)):
+
+```sql
+CREATE TABLE IF NOT EXISTS balance_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    total_balance REAL NOT NULL DEFAULT 0,
+    total_income REAL NOT NULL DEFAULT 0,
+    total_expense REAL NOT NULL DEFAULT 0,
+    total_credit REAL NOT NULL DEFAULT 0,
+    total_debit REAL NOT NULL DEFAULT 0,
+    month_count INTEGER NOT NULL DEFAULT 0,
+    calculated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+**PostgreSQL** ([`migrations/002_balance_snapshot.postgres.sql`](backend/migrations/002_balance_snapshot.postgres.sql)):
+
+```sql
+CREATE TABLE IF NOT EXISTS balance_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    total_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+    total_income NUMERIC(15,2) NOT NULL DEFAULT 0,
+    total_expense NUMERIC(15,2) NOT NULL DEFAULT 0,
+    total_credit NUMERIC(15,2) NOT NULL DEFAULT 0,
+    total_debit NUMERIC(15,2) NOT NULL DEFAULT 0,
+    month_count INTEGER NOT NULL DEFAULT 0,
+    calculated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### 3.5 Suporte Dual SQLite + PostgreSQL
 
 O backend suporta ambos os drivers de forma transparente, definido pela variável de ambiente `DATABASE_URL`:
 
@@ -317,6 +373,7 @@ O SQL usa o arquivo [`migrations/001_initial.sql`](backend/migrations/001_initia
 | **expense_type** | Só aplicável se a categoria pertence a um grupo do tipo `expense`. |
 | **period** | Determinado automaticamente pela `date` no momento da criação da transação. |
 | **monthly_summaries** | Tabela materializada para leitura rápida. Atualizada via trigger ou serviço. |
+| **balance_snapshots** | Tabela materializada com os saldos consolidados (total_balance, total_income, total_investments, total_expenses). Atualizada pelo `SyncJob` periódico. |
 | **closed_at** | Período fechado não pode receber novas transações (validação em serviço). |
 
 ---
@@ -386,6 +443,17 @@ sequenceDiagram
 ### 4.3 Pacote `domain/` — Entidades
 
 ```go
+// balance_snapshot.go
+type BalanceSnapshot struct {
+    ID            int64     `json:"id"`
+    TotalBalance  float64   `json:"total_balance"`
+    TotalIncome   float64   `json:"total_income"`
+    TotalExpense  float64   `json:"total_expense"`
+    MonthCount    int       `json:"month_count"`
+    CalculatedAt  string    `json:"calculated_at"`
+    CreatedAt     string    `json:"created_at"`
+}
+
 // domain/transaction.go
 type TransactionType string
 
@@ -512,6 +580,12 @@ type SummaryRepository interface {
     FindByPeriod(periodID int64) (*domain.MonthlySummary, error)
     Recalculate(periodID int64) error
 }
+
+// repository/balance_snapshot_repo.go
+type BalanceSnapshotRepository interface {
+    GetLatest(ctx context.Context) (*domain.BalanceSnapshot, error)
+    Recalculate(ctx context.Context, tx *sql.Tx) error
+}
 ```
 
 ### 4.5 Handlers HTTP e Rotas
@@ -531,7 +605,10 @@ As rotas são configuradas diretamente no [`main.go`](backend/cmd/server/main.go
 | `GET` | `/api/periods` | `periodHandler.List` | Listar períodos |
 | `POST` | `/api/periods/close` | `periodHandler.Close` | Fechar período |
 | `GET` | `/api/summary` | `summaryHandler.Get` | Obter resumo mensal (query: `?period=YYYY-MM`) |
+| `GET` | `/api/balance` | `balanceHandler.GetBalance` | Obter snapshot do balanço geral |
 | `GET` | `/api/health` | inline | Health check |
+
+> **Total de rotas:** 13 (12 endpoints de negócio + 1 health check).
 
 ### 4.6 Formato da Resposta da API
 
@@ -561,6 +638,26 @@ Todas as respostas seguem o envelope padronizado em [`handler.helpers.go`](backe
 | 409 | `already_closed` | Período já fechado |
 | 422 | `validation_error` | Erro de validação (ex.: período fechado) |
 | 500 | `internal_error` | Erro interno do servidor |
+
+---
+
+### 4.7 SyncJob — Job Periódico de Sincronização
+
+O [`SyncJob`](backend/internal/job/sync_job.go) é executado em background na inicialização do servidor e recalcula periodicamente os dados consolidados (summaries + balance snapshot).
+
+**Comportamento:**
+
+- Executa imediatamente ao iniciar o servidor
+- Repete a cada `SYNC_INTERVAL` segundos (padrão: 300s = 5min)
+- Executa dentro de uma única transação:
+  1. Para cada período, recalcula `monthly_summaries` via `SummaryRepository.RecalculateAll(ctx, tx)`
+  2. Recalcula o snapshot `balance_snapshots` via `BalanceSnapshotRepository.Recalculate(ctx, tx)`
+
+**Wiring em [`main.go`](backend/cmd/server/main.go):**
+
+```go
+go job.NewSyncJob(summaryRepo, balanceRepo, cfg.SyncInterval).Start(ctx)
+```
 
 ---
 
@@ -600,12 +697,17 @@ flowchart TD
         PC[PeriodsComponent]
     end
     
+    subgraph Overview
+        OS[OverviewScreen]
+    end
+    
     A --> ML
     ML --> |router-outlet| D
     ML --> |router-outlet| TC
     ML --> |router-outlet| TF
     ML --> |router-outlet| CC
     ML --> |router-outlet| PC
+    ML --> |router-outlet| OS
 ```
 
 ### 5.2 Fluxo de Dados
@@ -763,6 +865,20 @@ export interface DetailedSummary {
 }
 ```
 
+#### BalanceSnapshot (`core/interfaces/balance-snapshot.interface.ts`)
+
+```typescript
+export interface BalanceSnapshot {
+    id: number;
+    total_balance: number;
+    total_income: number;
+    total_expense: number;
+    month_count: number;
+    calculated_at: string;
+    created_at: string;
+}
+```
+
 ### 5.4 Services
 
 #### BaseApiService (`core/services/base-api.service.ts`)
@@ -789,6 +905,7 @@ Serviços concretos que estendem `BaseApiService`:
 | `TransactionService` | `/api/transactions` | `list(period)`, `create()`, `update()`, `deleteTransaction()` |
 | `PeriodService` | `/api/periods` | `list()`, `close(year, month)` |
 | `SummaryService` | `/api/summary` | `getByPeriod(period)` |
+| `BalanceService` | `/api/balance` | `getBalance()` → `Observable<BalanceSnapshot>` |
 
 #### PeriodNavigationService (`core/services/period-navigation.service.ts`)
 
@@ -837,6 +954,7 @@ Configuradas em [`app.routes.ts`](frontend/src/app/app.routes.ts) com lazy loadi
 | Path | Component | Descrição |
 |------|-----------|-----------|
 | `/` | `DashboardComponent` (redirect) | Dashboard com resumo mensal |
+| `/overview` | `OverviewScreen` | Visão geral do balanço consolidado |
 | `/transactions` | `TransactionsListComponent` | Lista de transações do período |
 | `/transactions/new` | `TransactionFormComponent` | Formulário de novo lançamento |
 | `/categories` | `CategoriesComponent` | Gestão de grupos e categorias |
@@ -849,6 +967,7 @@ A [`MainLayout`](frontend/src/app/core/layouts/main-layout.ts) contém uma sideb
 
 ```
 📊 Dashboard        → /
+👁 Visão Geral      → /overview
 💳 Transações       → /transactions
 📂 Categorias       → /categories
 📈 Períodos         → /periods
@@ -919,6 +1038,18 @@ Presente na sidebar, o seletor de período permite navegar entre meses usando bo
 | 5.2 | Endpoints MCP para criação de transações | 2.0 |
 | 5.3 | Documentação MCP | 5.1, 5.2 |
 
+### Fase 6 — Visão Geral + Job Periódico
+
+| Etapa | Tarefa | Depende de |
+|-------|--------|-----------|
+| 6.1 | Backend: migration 002 `balance_snapshots` | 1.3 |
+| 6.2 | Backend: domain `BalanceSnapshot` + `BalanceSnapshotRepository` | 6.1 |
+| 6.3 | Backend: `BalanceService` + `BalanceHandler` (GET /api/balance) | 6.2 |
+| 6.4 | Backend: `SyncJob` (job periódico) + `SummaryRepository.RecalculateAll` | 6.3, 2.8 |
+| 6.5 | Frontend: interface `BalanceSnapshot` + `BalanceService` | 6.3 |
+| 6.6 | Frontend: `OverviewScreen` (visão geral do balanço) | 6.5 |
+| 6.7 | Frontend: rota `/overview` + link na sidebar | 6.6 |
+
 ---
 
 ## 8. Decisões Técnicas
@@ -986,6 +1117,7 @@ github.com/lib/pq      # Driver PostgreSQL
 PORT=8080
 DB_PATH=./data/finance.db
 DATABASE_URL=                    # Opcional: postgres://user:pass@host:5432/dbname
+SYNC_INTERVAL=300                # Intervalo do SyncJob em segundos
 ```
 
 | Variável | Descrição | Padrão |
@@ -993,6 +1125,7 @@ DATABASE_URL=                    # Opcional: postgres://user:pass@host:5432/dbna
 | `PORT` | Porta do servidor HTTP | `8080` |
 | `DB_PATH` | Caminho do arquivo SQLite | `./data/finance.db` |
 | `DATABASE_URL` | URL de conexão PostgreSQL (se definida, substitui SQLite) | vazio (usa SQLite) |
+| `SYNC_INTERVAL` | Intervalo de execução do `SyncJob` em segundos | `300` (5 minutos) |
 
 ### Frontend
 

@@ -46,6 +46,7 @@ Cada serviço tem **uma única responsabilidade**:
 | `TransactionService`       | Operações CRUD de transações              |
 | `PeriodService`            | Listagem e fechamento de períodos         |
 | `SummaryService`           | Consulta de resumo mensal                 |
+| `BalanceService`           | Consulta do balanço consolidado (visão geral) |
 | `CurrencyUtils`            | Formatação de valores (centavos → R$)     |
 | `PeriodNavigationService`  | Estado do período selecionado (sessão)    |
 
@@ -92,18 +93,22 @@ frontend/
 │   │   ├── core/                      // Singleton, providers raiz
 │   │   │   ├── interfaces/            // Modelos/domínios
 │   │   │   │   ├── api.interface.ts
+│   │   │   │   ├── balance-snapshot.interface.ts
 │   │   │   │   ├── category.interface.ts
 │   │   │   │   ├── transaction.interface.ts
 │   │   │   │   ├── period.interface.ts
-│   │   │   │   └── summary.interface.ts
+│   │   │   │   ├── summary.interface.ts
+│   │   │   │   └── index.ts
 │   │   │   │
 │   │   │   ├── services/              // Serviços HTTP abstratos
 │   │   │   │   ├── base-api.service.ts
+│   │   │   │   ├── balance.service.ts
 │   │   │   │   ├── category.service.ts
 │   │   │   │   ├── transaction.service.ts
 │   │   │   │   ├── period.service.ts
 │   │   │   │   ├── summary.service.ts
-│   │   │   │   └── period-navigation.service.ts
+│   │   │   │   ├── period-navigation.service.ts
+│   │   │   │   └── index.ts
 │   │   │   │
 │   │   │   ├── utils/                 // Utilitários
 │   │   │   │   ├── currency.utils.ts  // Centavos ↔ R$
@@ -128,6 +133,10 @@ frontend/
 │   │   │   │
 │   │   │   ├── categories/            // Gestão de categorias
 │   │   │   │   ├── categories.ts
+│   │   │   │   └── .gitkeep
+│   │   │   │
+│   │   │   ├── overview/              // Visão geral do balanço
+│   │   │   │   ├── overview.ts
 │   │   │   │   └── .gitkeep
 │   │   │   │
 │   │   │   └── periods/               // Fechamento de períodos
@@ -344,6 +353,24 @@ export interface ExpensesSummary {
 }
 ```
 
+### 4.6 BalanceSnapshot
+
+```typescript
+// core/interfaces/balance-snapshot.interface.ts
+
+export interface BalanceSnapshot {
+    id: number;
+    total_balance: number;
+    total_income: number;
+    total_expense: number;
+    month_count: number;
+    calculated_at: string;
+    created_at: string;
+}
+```
+
+> **Nota:** O `BalanceSnapshot` usa **snake_case** nos nomes das propriedades, pois o backend Go serializa com tags `json:"total_balance"` (diferente das outras interfaces que usam camelCase). Os valores monetários são `float64` (não centavos), refletindo o schema REAL da tabela `balance_snapshots`.
+
 ---
 
 ## 5. Mapeamento de Endpoints da API
@@ -363,6 +390,7 @@ Base URL: `http://localhost:8080/api`
 | GET    | `/api/periods`              | Listar períodos         | —                  | `{ periods[] }`                        |
 | POST   | `/api/periods/close`        | Fechar período          | `ClosePeriodPayload` | `{ message, period }`               |
 | GET    | `/api/summary?period=`      | Obter resumo mensal     | —                  | `DetailedSummary`                      |
+| GET    | `/api/balance`              | Obter snapshot do balanço | —                 | `{ balance: BalanceSnapshot }`         |
 | GET    | `/api/health`               | Health check            | —                  | `{ status }`                           |
 
 **Convenção:** A API usa **camelCase** tanto em requests quanto em responses (observado no código Go). Exceção: alguns campos como `expense_type` no request de criação de categoria usam snake_case — convertido via `CategoryService.toSnakeCase()`.
@@ -401,6 +429,7 @@ flowchart TD
         TFC[TransactionFormComponent]
         CC[CategoriesComponent]
         PC[PeriodsComponent]
+        OS[OverviewScreen]
     end
 
     subgraph Services
@@ -408,6 +437,7 @@ flowchart TD
         TS[TransactionService]
         PS[PeriodService]
         SS[SummaryService]
+        BS[BalanceService]
         PNS[PeriodNavigationService]
     end
 
@@ -434,11 +464,13 @@ flowchart TD
     CC --> CS
     PC --> PS
     PC --> SS
+    OS --> BS
 
     CS --> H
     TS --> H
     PS --> H
     SS --> H
+    BS --> H
 
     PNS -.-> |compartilha período ativo| DC
     PNS -.-> |compartilha período ativo| TLC
@@ -610,7 +642,25 @@ export class SummaryService extends BaseApiService {
 }
 ```
 
-### 6.7 PeriodNavigationService (Estado Compartilhado)
+### 6.7 BalanceService
+
+```typescript
+// core/services/balance.service.ts
+
+@Injectable({ providedIn: 'root' })
+export class BalanceService extends BaseApiService {
+  protected readonly basePath = '/api/balance';
+
+  /** GET /api/balance → BalanceSnapshot */
+  getBalance(): Observable<BalanceSnapshot> {
+    return this.get<{ balance: BalanceSnapshot }>().pipe(
+      map((response) => response.balance)
+    );
+  }
+}
+```
+
+### 6.8 PeriodNavigationService (Estado Compartilhado)
 
 ```typescript
 // core/services/period-navigation.service.ts
@@ -723,6 +773,10 @@ flowchart LR
         D[DashboardComponent]
     end
 
+    subgraph Overview "feature: overview"
+        OS[OverviewScreen - Balanço]
+    end
+
     subgraph Transactions "feature: transactions"
         TL[TransactionsList - Lista]
         TF[TransactionForm - Cria]
@@ -738,6 +792,7 @@ flowchart LR
 
     A --> ML
     ML --> |router-outlet| D
+    ML --> |router-outlet| OS
     ML --> |router-outlet| TL
     ML --> |router-outlet| TF
     ML --> |router-outlet| CC
@@ -786,6 +841,13 @@ flowchart LR
 - **Dados:** `PeriodService.list()`
 - **Ações:** Botão "Fechar Período" com confirmação
 
+#### OverviewScreen
+- **Rota:** `/overview`
+- **Arquivo:** [`features/overview/overview.ts`](frontend/src/app/features/overview/overview.ts)
+- **Responsabilidade:** Exibe visão geral do balanço consolidado (todos os períodos)
+- **Dados:** `BalanceService.getBalance()` → `BalanceSnapshot`
+- **Layout:** Cards com `total_balance`, `total_income`, `total_expense` e `month_count`, formatados com `CurrencyBRLPipe`
+
 ---
 
 ## 8. Roteamento com Lazy Loading
@@ -804,6 +866,11 @@ export const routes: Routes = [
         path: '',
         loadComponent: () => import('./features/dashboard/dashboard').then((c) => c.default),
         title: 'Dashboard - Finance Tracker',
+      },
+      {
+        path: 'overview',
+        loadComponent: () => import('./features/overview/overview').then((c) => c.default),
+        title: 'Visão Geral - Finance Tracker',
       },
       {
         path: 'transactions',
@@ -839,6 +906,7 @@ export const routes: Routes = [
 | Caminho               | Componente           | Carregamento   | Título                           |
 |-----------------------|----------------------|----------------|----------------------------------|
 | `/`                   | DashboardComponent   | `loadComponent` | Dashboard - Finance Tracker      |
+| `/overview`           | OverviewScreen       | `loadComponent` | Visão Geral - Finance Tracker    |
 | `/transactions`       | TransactionsList     | `loadComponent` | Transações - Finance Tracker     |
 | `/transactions/new`   | TransactionForm      | `loadComponent` | Nova Transação - Finance Tracker |
 | `/categories`         | CategoriesComponent  | `loadComponent` | Categorias - Finance Tracker     |
@@ -920,6 +988,7 @@ export class MainLayout {
 
   protected readonly navItems = [
     { path: '/', label: 'Dashboard', exact: true },
+    { path: '/overview', label: 'Visão Geral', exact: false },
     { path: '/transactions', label: 'Transações', exact: false },
     { path: '/categories', label: 'Categorias', exact: false },
     { path: '/periods', label: 'Períodos', exact: false },
@@ -1267,6 +1336,15 @@ export interface AppHttpError {
 - [ ] 8.3 Adicionar tratamento de erros com notificações
 - [ ] 8.4 Responsividade mobile (ajustes Tailwind)
 - [ ] 8.5 Testar integração ponta a ponta com backend
+
+### Fase 9 — Feature: Visão Geral (Overview)
+
+- [ ] 9.1 Criar interface `BalanceSnapshot` (`core/interfaces/balance-snapshot.interface.ts`)
+- [ ] 9.2 Criar `BalanceService` (`core/services/balance.service.ts`)
+- [ ] 9.3 Criar `OverviewScreen` (componente com cards de balanço)
+- [ ] 9.4 Adicionar rota `/overview` com lazy loading
+- [ ] 9.5 Adicionar link "Visão Geral" na sidebar (`navItems`)
+- [ ] 9.6 Adicionar item ao `core/interfaces/index.ts` e `core/services/index.ts`
 
 ---
 
