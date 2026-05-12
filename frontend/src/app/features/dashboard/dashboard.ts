@@ -1,4 +1,5 @@
 import { Component, inject, signal, type OnInit, type OnDestroy } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Subject, switchMap, takeUntil, tap, catchError, of } from 'rxjs';
 
 import { PeriodNavigationService } from '../../core/services/period-navigation.service';
@@ -13,7 +14,7 @@ import type { DetailedSummary, Transaction } from '../../core/interfaces';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CurrencyBRLPipe, LoadingSpinner, ErrorAlert],
+  imports: [RouterLink, CurrencyBRLPipe, LoadingSpinner, ErrorAlert],
   template: `
     <div class="space-y-6">
       <!-- Summary Cards -->
