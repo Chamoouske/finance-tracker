@@ -16,20 +16,20 @@ type PeriodRepository interface {
 	Close(id int64) error
 }
 
-type sqlitePeriodRepository struct {
+type periodRepository struct {
 	db *sql.DB
 }
 
 func NewPeriodRepository(db *sql.DB) PeriodRepository {
-	return &sqlitePeriodRepository{db: db}
+	return &periodRepository{db: db}
 }
 
-func (r *sqlitePeriodRepository) FindByID(id int64) (*domain.Period, error) {
+func (r *periodRepository) FindByID(id int64) (*domain.Period, error) {
 	p := &domain.Period{}
 	var closedAt sql.NullString
-	var createdAt, updatedAt string
+	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(
-		`SELECT id, year, month, closed_at, created_at, updated_at FROM periods WHERE id = ?`, id,
+		`SELECT id, year, month, closed_at, created_at, updated_at FROM periods WHERE id = $1`, id,
 	).Scan(&p.ID, &p.Year, &p.Month, &closedAt, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -38,22 +38,22 @@ func (r *sqlitePeriodRepository) FindByID(id int64) (*domain.Period, error) {
 		return nil, fmt.Errorf("find period by id: %w", err)
 	}
 	if closedAt.Valid {
-		t, err := parseTime(closedAt.String)
+		t, err := time.Parse("2006-01-02 15:04:05", closedAt.String)
 		if err == nil {
 			p.ClosedAt = &t
 		}
 	}
-	p.CreatedAt, _ = parseTime(createdAt)
-	p.UpdatedAt, _ = parseTime(updatedAt)
+	p.CreatedAt = createdAt
+	p.UpdatedAt = updatedAt
 	return p, nil
 }
 
-func (r *sqlitePeriodRepository) FindByYearMonth(year, month int) (*domain.Period, error) {
+func (r *periodRepository) FindByYearMonth(year, month int) (*domain.Period, error) {
 	p := &domain.Period{}
 	var closedAt sql.NullString
-	var createdAt, updatedAt string
+	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(
-		`SELECT id, year, month, closed_at, created_at, updated_at FROM periods WHERE year = ? AND month = ?`, year, month,
+		`SELECT id, year, month, closed_at, created_at, updated_at FROM periods WHERE year = $1 AND month = $2`, year, month,
 	).Scan(&p.ID, &p.Year, &p.Month, &closedAt, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -62,17 +62,17 @@ func (r *sqlitePeriodRepository) FindByYearMonth(year, month int) (*domain.Perio
 		return nil, fmt.Errorf("find period by year/month: %w", err)
 	}
 	if closedAt.Valid {
-		t, err := parseTime(closedAt.String)
+		t, err := time.Parse("2006-01-02 15:04:05", closedAt.String)
 		if err == nil {
 			p.ClosedAt = &t
 		}
 	}
-	p.CreatedAt, _ = parseTime(createdAt)
-	p.UpdatedAt, _ = parseTime(updatedAt)
+	p.CreatedAt = createdAt
+	p.UpdatedAt = updatedAt
 	return p, nil
 }
 
-func (r *sqlitePeriodRepository) GetOrCreate(year, month int) (*domain.Period, error) {
+func (r *periodRepository) GetOrCreate(year, month int) (*domain.Period, error) {
 	p, err := r.FindByYearMonth(year, month)
 	if err != nil {
 		return nil, err
@@ -81,10 +81,11 @@ func (r *sqlitePeriodRepository) GetOrCreate(year, month int) (*domain.Period, e
 		return p, nil
 	}
 
-	now := formatTime(time.Now())
+	now := time.Now()
+	nowStr := formatTime(now)
 	result, err := r.db.Exec(
-		`INSERT INTO periods (year, month, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-		year, month, now, now,
+		`INSERT INTO periods (year, month, created_at, updated_at) VALUES ($1, $2, $3, $4)`,
+		year, month, nowStr, nowStr,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create period: %w", err)
@@ -94,12 +95,12 @@ func (r *sqlitePeriodRepository) GetOrCreate(year, month int) (*domain.Period, e
 		ID:        id,
 		Year:      year,
 		Month:     month,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}, nil
 }
 
-func (r *sqlitePeriodRepository) List() ([]*domain.Period, error) {
+func (r *periodRepository) List() ([]*domain.Period, error) {
 	rows, err := r.db.Query(
 		`SELECT id, year, month, closed_at, created_at, updated_at FROM periods ORDER BY year DESC, month DESC`,
 	)
@@ -112,27 +113,27 @@ func (r *sqlitePeriodRepository) List() ([]*domain.Period, error) {
 	for rows.Next() {
 		p := &domain.Period{}
 		var closedAt sql.NullString
-		var createdAt, updatedAt string
+		var createdAt, updatedAt time.Time
 		if err := rows.Scan(&p.ID, &p.Year, &p.Month, &closedAt, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan period: %w", err)
 		}
 		if closedAt.Valid {
-			t, err := parseTime(closedAt.String)
+			t, err := time.Parse("2006-01-02 15:04:05", closedAt.String)
 			if err == nil {
 				p.ClosedAt = &t
 			}
 		}
-		p.CreatedAt, _ = parseTime(createdAt)
-		p.UpdatedAt, _ = parseTime(updatedAt)
+		p.CreatedAt = createdAt
+		p.UpdatedAt = updatedAt
 		periods = append(periods, p)
 	}
 	return periods, nil
 }
 
-func (r *sqlitePeriodRepository) Close(id int64) error {
+func (r *periodRepository) Close(id int64) error {
 	now := formatTime(time.Now())
 	result, err := r.db.Exec(
-		`UPDATE periods SET closed_at = ?, updated_at = ? WHERE id = ?`, now, now, id,
+		`UPDATE periods SET closed_at = $1, updated_at = $2 WHERE id = $3`, now, now, id,
 	)
 	if err != nil {
 		return fmt.Errorf("close period: %w", err)

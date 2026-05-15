@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/chamoouske/finance-tracker/internal/domain"
 )
@@ -13,17 +14,17 @@ type BalanceSnapshotRepository interface {
 	Recalculate(ctx context.Context, tx *sql.Tx) error
 }
 
-type sqliteBalanceSnapshotRepository struct {
+type balanceSnapshotRepository struct {
 	db *sql.DB
 }
 
 func NewBalanceSnapshotRepository(db *sql.DB) BalanceSnapshotRepository {
-	return &sqliteBalanceSnapshotRepository{db: db}
+	return &balanceSnapshotRepository{db: db}
 }
 
-func (r *sqliteBalanceSnapshotRepository) GetLatest(ctx context.Context) (*domain.BalanceSnapshot, error) {
+func (r *balanceSnapshotRepository) GetLatest(ctx context.Context) (*domain.BalanceSnapshot, error) {
 	s := &domain.BalanceSnapshot{}
-	var calculatedAt, createdAt string
+	var calculatedAt, createdAt time.Time
 
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, total_balance, total_income, total_expense,
@@ -41,12 +42,12 @@ func (r *sqliteBalanceSnapshotRepository) GetLatest(ctx context.Context) (*domai
 		return nil, fmt.Errorf("get latest balance snapshot: %w", err)
 	}
 
-	s.CalculatedAt, _ = parseTime(calculatedAt)
-	s.CreatedAt, _ = parseTime(createdAt)
+	s.CalculatedAt = calculatedAt
+	s.CreatedAt = createdAt
 	return s, nil
 }
 
-func (r *sqliteBalanceSnapshotRepository) Recalculate(ctx context.Context, tx *sql.Tx) error {
+func (r *balanceSnapshotRepository) Recalculate(ctx context.Context, tx *sql.Tx) error {
 	ownTx := false
 	if tx == nil {
 		var err error
@@ -90,4 +91,4 @@ func (r *sqliteBalanceSnapshotRepository) Recalculate(ctx context.Context, tx *s
 }
 
 // Ensure compile-time interface compliance
-var _ BalanceSnapshotRepository = (*sqliteBalanceSnapshotRepository)(nil)
+var _ BalanceSnapshotRepository = (*balanceSnapshotRepository)(nil)

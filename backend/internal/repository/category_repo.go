@@ -17,15 +17,15 @@ type CategoryRepository interface {
 	Delete(id int64) error
 }
 
-type sqliteCategoryRepository struct {
+type categoryRepository struct {
 	db *sql.DB
 }
 
 func NewCategoryRepository(db *sql.DB) CategoryRepository {
-	return &sqliteCategoryRepository{db: db}
+	return &categoryRepository{db: db}
 }
 
-func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
+func (r *categoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 	groupRows, err := r.db.Query(
 		`SELECT id, name, type, sort_order, created_at FROM category_groups ORDER BY sort_order`,
 	)
@@ -37,11 +37,11 @@ func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 	var groups []*domain.CategoryGroup
 	for groupRows.Next() {
 		g := &domain.CategoryGroup{}
-		var createdAt string
+		var createdAt time.Time
 		if err := groupRows.Scan(&g.ID, &g.Name, &g.Type, &g.SortOrder, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan category group: %w", err)
 		}
-		g.CreatedAt, _ = parseTime(createdAt)
+		g.CreatedAt = createdAt
 		groups = append(groups, g)
 	}
 
@@ -66,7 +66,7 @@ func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 	for catRows.Next() {
 		cat := domain.Category{}
 		var expenseType sql.NullString
-		var createdAt, updatedAt string
+		var createdAt, updatedAt time.Time
 		var active int
 		if err := catRows.Scan(&cat.ID, &cat.GroupID, &cat.Name, &expenseType, &cat.SortOrder, &active, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan category: %w", err)
@@ -76,8 +76,8 @@ func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 			cat.ExpenseType = &et
 		}
 		cat.Active = active == 1
-		cat.CreatedAt, _ = parseTime(createdAt)
-		cat.UpdatedAt, _ = parseTime(updatedAt)
+		cat.CreatedAt = createdAt
+		cat.UpdatedAt = updatedAt
 
 		if g, ok := groupMap[cat.GroupID]; ok {
 			g.Categories = append(g.Categories, cat)
@@ -87,14 +87,14 @@ func (r *sqliteCategoryRepository) FindAll() ([]*domain.CategoryGroup, error) {
 	return groups, nil
 }
 
-func (r *sqliteCategoryRepository) FindByID(id int64) (*domain.Category, error) {
+func (r *categoryRepository) FindByID(id int64) (*domain.Category, error) {
 	cat := &domain.Category{}
 	var expenseType sql.NullString
-	var createdAt, updatedAt string
+	var createdAt, updatedAt time.Time
 	var active int
 	err := r.db.QueryRow(
 		`SELECT id, group_id, name, expense_type, sort_order, active, created_at, updated_at
-		 FROM categories WHERE id = ?`, id,
+		 FROM categories WHERE id = $1`, id,
 	).Scan(&cat.ID, &cat.GroupID, &cat.Name, &expenseType, &cat.SortOrder, &active, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -107,15 +107,15 @@ func (r *sqliteCategoryRepository) FindByID(id int64) (*domain.Category, error) 
 		cat.ExpenseType = &et
 	}
 	cat.Active = active == 1
-	cat.CreatedAt, _ = parseTime(createdAt)
-	cat.UpdatedAt, _ = parseTime(updatedAt)
+	cat.CreatedAt = createdAt
+	cat.UpdatedAt = updatedAt
 	return cat, nil
 }
 
-func (r *sqliteCategoryRepository) FindByGroupID(groupID int64) ([]*domain.Category, error) {
+func (r *categoryRepository) FindByGroupID(groupID int64) ([]*domain.Category, error) {
 	rows, err := r.db.Query(
 		`SELECT id, group_id, name, expense_type, sort_order, active, created_at, updated_at
-		 FROM categories WHERE group_id = ? ORDER BY sort_order`, groupID,
+		 FROM categories WHERE group_id = $1 ORDER BY sort_order`, groupID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("find categories by group: %w", err)
@@ -126,7 +126,7 @@ func (r *sqliteCategoryRepository) FindByGroupID(groupID int64) ([]*domain.Categ
 	for rows.Next() {
 		cat := &domain.Category{}
 		var expenseType sql.NullString
-		var createdAt, updatedAt string
+		var createdAt, updatedAt time.Time
 		var active int
 		if err := rows.Scan(&cat.ID, &cat.GroupID, &cat.Name, &expenseType, &cat.SortOrder, &active, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan category: %w", err)
@@ -136,15 +136,16 @@ func (r *sqliteCategoryRepository) FindByGroupID(groupID int64) ([]*domain.Categ
 			cat.ExpenseType = &et
 		}
 		cat.Active = active == 1
-		cat.CreatedAt, _ = parseTime(createdAt)
-		cat.UpdatedAt, _ = parseTime(updatedAt)
+		cat.CreatedAt = createdAt
+		cat.UpdatedAt = updatedAt
 		categories = append(categories, cat)
 	}
 	return categories, nil
 }
 
-func (r *sqliteCategoryRepository) Create(c *domain.Category) error {
-	now := formatTime(time.Now())
+func (r *categoryRepository) Create(c *domain.Category) error {
+	now := time.Now()
+	nowStr := formatTime(now)
 	var expenseType *string
 	if c.ExpenseType != nil {
 		s := string(*c.ExpenseType)
@@ -158,21 +159,22 @@ func (r *sqliteCategoryRepository) Create(c *domain.Category) error {
 
 	result, err := r.db.Exec(
 		`INSERT INTO categories (group_id, name, expense_type, sort_order, active, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.GroupID, c.Name, expenseType, c.SortOrder, active, now, now,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		c.GroupID, c.Name, expenseType, c.SortOrder, active, nowStr, nowStr,
 	)
 	if err != nil {
 		return fmt.Errorf("create category: %w", err)
 	}
 	id, _ := result.LastInsertId()
 	c.ID = id
-	c.CreatedAt, _ = parseTime(now)
-	c.UpdatedAt = c.CreatedAt
+	c.CreatedAt = now
+	c.UpdatedAt = now
 	return nil
 }
 
-func (r *sqliteCategoryRepository) Update(c *domain.Category) error {
-	now := formatTime(time.Now())
+func (r *categoryRepository) Update(c *domain.Category) error {
+	now := time.Now()
+	nowStr := formatTime(now)
 	var expenseType *string
 	if c.ExpenseType != nil {
 		s := string(*c.ExpenseType)
@@ -185,9 +187,9 @@ func (r *sqliteCategoryRepository) Update(c *domain.Category) error {
 	}
 
 	result, err := r.db.Exec(
-		`UPDATE categories SET name = ?, expense_type = ?, sort_order = ?, active = ?, updated_at = ?
-		 WHERE id = ?`,
-		c.Name, expenseType, c.SortOrder, active, now, c.ID,
+		`UPDATE categories SET name = $1, expense_type = $2, sort_order = $3, active = $4, updated_at = $5
+		 WHERE id = $6`,
+		c.Name, expenseType, c.SortOrder, active, nowStr, c.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update category: %w", err)
@@ -196,12 +198,12 @@ func (r *sqliteCategoryRepository) Update(c *domain.Category) error {
 	if rows == 0 {
 		return fmt.Errorf("category not found: %d", c.ID)
 	}
-	c.UpdatedAt, _ = parseTime(now)
+	c.UpdatedAt = now
 	return nil
 }
 
-func (r *sqliteCategoryRepository) Delete(id int64) error {
-	result, err := r.db.Exec(`DELETE FROM categories WHERE id = ?`, id)
+func (r *categoryRepository) Delete(id int64) error {
+	result, err := r.db.Exec(`DELETE FROM categories WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete category: %w", err)
 	}

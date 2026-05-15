@@ -15,22 +15,22 @@ type SummaryRepository interface {
 	RecalculateAll(ctx context.Context, tx *sql.Tx) error
 }
 
-type sqliteSummaryRepository struct {
+type summaryRepository struct {
 	db *sql.DB
 }
 
 func NewSummaryRepository(db *sql.DB) SummaryRepository {
-	return &sqliteSummaryRepository{db: db}
+	return &summaryRepository{db: db}
 }
 
-func (r *sqliteSummaryRepository) FindByPeriod(periodID int64) (*domain.MonthlySummary, error) {
+func (r *summaryRepository) FindByPeriod(periodID int64) (*domain.MonthlySummary, error) {
 	s := &domain.MonthlySummary{}
-	var createdAt, updatedAt string
+	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(
 		`SELECT id, period_id, revenue_total, investment_total, fixed_expense_total,
 			variable_expense_total, extra_expense_total, additional_expense_total, balance,
 			created_at, updated_at
-		 FROM monthly_summaries WHERE period_id = ?`, periodID,
+		 FROM monthly_summaries WHERE period_id = $1`, periodID,
 	).Scan(&s.ID, &s.PeriodID, &s.RevenueTotal, &s.InvestmentTotal,
 		&s.FixedExpenseTotal, &s.VariableExpenseTotal, &s.ExtraExpenseTotal,
 		&s.AdditionalExpenseTotal, &s.Balance, &createdAt, &updatedAt)
@@ -40,12 +40,12 @@ func (r *sqliteSummaryRepository) FindByPeriod(periodID int64) (*domain.MonthlyS
 		}
 		return nil, fmt.Errorf("find summary by period: %w", err)
 	}
-	s.CreatedAt, _ = parseTime(createdAt)
-	s.UpdatedAt, _ = parseTime(updatedAt)
+	s.CreatedAt = createdAt
+	s.UpdatedAt = updatedAt
 	return s, nil
 }
 
-func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
+func (r *summaryRepository) Recalculate(periodID int64) error {
 	query := `
 	SELECT
 		COALESCE(SUM(CASE WHEN cg.type = 'revenue' THEN t.amount ELSE 0 END), 0),
@@ -57,7 +57,7 @@ func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 	FROM transactions t
 	JOIN categories c ON c.id = t.category_id
 	JOIN category_groups cg ON cg.id = c.group_id
-	WHERE t.period_id = ?`
+	WHERE t.period_id = $1`
 
 	var revenueTotal, investmentTotal, fixedTotal, variableTotal, extraTotal, additionalTotal int64
 
@@ -70,17 +70,18 @@ func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 
 	balance := revenueTotal + investmentTotal - fixedTotal - variableTotal - extraTotal - additionalTotal
 
-	now := formatTime(time.Now())
+	now := time.Now()
+	nowStr := formatTime(now)
 
 	result, err := r.db.Exec(
 		`UPDATE monthly_summaries SET
-			revenue_total = ?, investment_total = ?,
-			fixed_expense_total = ?, variable_expense_total = ?,
-			extra_expense_total = ?, additional_expense_total = ?,
-			balance = ?, updated_at = ?
-		 WHERE period_id = ?`,
+			revenue_total = $1, investment_total = $2,
+			fixed_expense_total = $3, variable_expense_total = $4,
+			extra_expense_total = $5, additional_expense_total = $6,
+			balance = $7, updated_at = $8
+		 WHERE period_id = $9`,
 		revenueTotal, investmentTotal, fixedTotal, variableTotal, extraTotal, additionalTotal,
-		balance, now, periodID,
+		balance, nowStr, periodID,
 	)
 	if err != nil {
 		return fmt.Errorf("update summary: %w", err)
@@ -91,9 +92,9 @@ func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 			`INSERT INTO monthly_summaries (period_id, revenue_total, investment_total,
 				fixed_expense_total, variable_expense_total, extra_expense_total,
 				additional_expense_total, balance, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 			periodID, revenueTotal, investmentTotal, fixedTotal, variableTotal, extraTotal,
-			additionalTotal, balance, now, now,
+			additionalTotal, balance, nowStr, nowStr,
 		)
 		if err != nil {
 			return fmt.Errorf("insert summary: %w", err)
@@ -103,7 +104,7 @@ func (r *sqliteSummaryRepository) Recalculate(periodID int64) error {
 	return nil
 }
 
-func (r *sqliteSummaryRepository) RecalculateAll(ctx context.Context, tx *sql.Tx) error {
+func (r *summaryRepository) RecalculateAll(ctx context.Context, tx *sql.Tx) error {
 	ownTx := false
 	if tx == nil {
 		var err error
@@ -115,7 +116,6 @@ func (r *sqliteSummaryRepository) RecalculateAll(ctx context.Context, tx *sql.Tx
 		defer tx.Rollback()
 	}
 
-	// Use INSERT OR REPLACE (UPSERT) to recalculate all summaries at once
 	now := formatTime(time.Now())
 
 	query := `

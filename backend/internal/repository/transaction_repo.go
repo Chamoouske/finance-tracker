@@ -17,37 +17,38 @@ type TransactionRepository interface {
 	Delete(id int64) error
 }
 
-type sqliteTransactionRepository struct {
+type transactionRepository struct {
 	db *sql.DB
 }
 
 func NewTransactionRepository(db *sql.DB) TransactionRepository {
-	return &sqliteTransactionRepository{db: db}
+	return &transactionRepository{db: db}
 }
 
-func (r *sqliteTransactionRepository) Create(t *domain.Transaction) error {
-	now := formatTime(time.Now())
+func (r *transactionRepository) Create(t *domain.Transaction) error {
+	now := time.Now()
+	nowStr := formatTime(now)
 	result, err := r.db.Exec(
 		`INSERT INTO transactions (period_id, category_id, date, amount, type, note, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.PeriodID, t.CategoryID, t.Date, t.Amount, t.Type, t.Note, now, now,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		t.PeriodID, t.CategoryID, t.Date, t.Amount, t.Type, t.Note, nowStr, nowStr,
 	)
 	if err != nil {
 		return fmt.Errorf("create transaction: %w", err)
 	}
 	id, _ := result.LastInsertId()
 	t.ID = id
-	t.CreatedAt, _ = parseTime(now)
-	t.UpdatedAt = t.CreatedAt
+	t.CreatedAt = now
+	t.UpdatedAt = now
 	return nil
 }
 
-func (r *sqliteTransactionRepository) FindByID(id int64) (*domain.Transaction, error) {
+func (r *transactionRepository) FindByID(id int64) (*domain.Transaction, error) {
 	t := &domain.Transaction{}
-	var createdAt, updatedAt string
+	var createdAt, updatedAt time.Time
 	err := r.db.QueryRow(
 		`SELECT t.id, t.period_id, t.category_id, t.date, t.amount, t.type, t.note, t.created_at, t.updated_at
-		 FROM transactions t WHERE t.id = ?`, id,
+		 FROM transactions t WHERE t.id = $1`, id,
 	).Scan(&t.ID, &t.PeriodID, &t.CategoryID, &t.Date, &t.Amount, &t.Type, &t.Note, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -55,12 +56,12 @@ func (r *sqliteTransactionRepository) FindByID(id int64) (*domain.Transaction, e
 		}
 		return nil, fmt.Errorf("find transaction by id: %w", err)
 	}
-	t.CreatedAt, _ = parseTime(createdAt)
-	t.UpdatedAt, _ = parseTime(updatedAt)
+	t.CreatedAt = createdAt
+	t.UpdatedAt = updatedAt
 	return t, nil
 }
 
-func (r *sqliteTransactionRepository) FindByPeriod(periodID int64) ([]*domain.Transaction, error) {
+func (r *transactionRepository) FindByPeriod(periodID int64) ([]*domain.Transaction, error) {
 	query := `SELECT t.id, t.period_id, t.category_id, t.date, t.amount, t.type, t.note,
 		t.created_at, t.updated_at,
 		c.id, c.group_id, c.name, c.expense_type, c.sort_order, c.active,
@@ -69,13 +70,13 @@ func (r *sqliteTransactionRepository) FindByPeriod(periodID int64) ([]*domain.Tr
 	FROM transactions t
 	LEFT JOIN categories c ON c.id = t.category_id
 	LEFT JOIN periods p ON p.id = t.period_id
-	WHERE t.period_id = ?
+	WHERE t.period_id = $1
 	ORDER BY t.date DESC, t.id DESC`
 
 	return r.queryTransactions(query, periodID)
 }
 
-func (r *sqliteTransactionRepository) FindByPeriodStr(year, month int) ([]*domain.Transaction, error) {
+func (r *transactionRepository) FindByPeriodStr(year, month int) ([]*domain.Transaction, error) {
 	query := `SELECT t.id, t.period_id, t.category_id, t.date, t.amount, t.type, t.note,
 		t.created_at, t.updated_at,
 		c.id, c.group_id, c.name, c.expense_type, c.sort_order, c.active,
@@ -84,13 +85,13 @@ func (r *sqliteTransactionRepository) FindByPeriodStr(year, month int) ([]*domai
 	FROM transactions t
 	LEFT JOIN categories c ON c.id = t.category_id
 	LEFT JOIN periods p ON p.id = t.period_id
-	WHERE p.year = ? AND p.month = ?
+	WHERE p.year = $1 AND p.month = $2
 	ORDER BY t.date DESC, t.id DESC`
 
 	return r.queryTransactions(query, year, month)
 }
 
-func (r *sqliteTransactionRepository) queryTransactions(query string, args ...interface{}) ([]*domain.Transaction, error) {
+func (r *transactionRepository) queryTransactions(query string, args ...interface{}) ([]*domain.Transaction, error) {
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query transactions: %w", err)
@@ -119,13 +120,13 @@ func scanFullTransaction(scanner interface {
 	period := &domain.Period{}
 
 	var catExpenseType sql.NullString
-	var catCreatedAt, catUpdatedAt string
+	var catCreatedAt, catUpdatedAt time.Time
 	var catActive int
 
 	var periodClosedAt sql.NullString
-	var periodCreatedAt, periodUpdatedAt string
+	var periodCreatedAt, periodUpdatedAt time.Time
 
-	var tCreatedAt, tUpdatedAt string
+	var tCreatedAt, tUpdatedAt time.Time
 
 	err := scanner.Scan(
 		&t.ID, &t.PeriodID, &t.CategoryID, &t.Date, &t.Amount, &t.Type, &t.Note,
@@ -138,8 +139,8 @@ func scanFullTransaction(scanner interface {
 		return nil, fmt.Errorf("scan transaction: %w", err)
 	}
 
-	t.CreatedAt, _ = parseTime(tCreatedAt)
-	t.UpdatedAt, _ = parseTime(tUpdatedAt)
+	t.CreatedAt = tCreatedAt
+	t.UpdatedAt = tUpdatedAt
 
 	if cat.ID > 0 {
 		if catExpenseType.Valid {
@@ -147,32 +148,33 @@ func scanFullTransaction(scanner interface {
 			cat.ExpenseType = &et
 		}
 		cat.Active = catActive == 1
-		cat.CreatedAt, _ = parseTime(catCreatedAt)
-		cat.UpdatedAt, _ = parseTime(catUpdatedAt)
+		cat.CreatedAt = catCreatedAt
+		cat.UpdatedAt = catUpdatedAt
 		t.Category = cat
 	}
 
 	if period.ID > 0 {
 		if periodClosedAt.Valid {
-			t2, err := parseTime(periodClosedAt.String)
+			t2, err := time.Parse("2006-01-02 15:04:05", periodClosedAt.String)
 			if err == nil {
 				period.ClosedAt = &t2
 			}
 		}
-		period.CreatedAt, _ = parseTime(periodCreatedAt)
-		period.UpdatedAt, _ = parseTime(periodUpdatedAt)
+		period.CreatedAt = periodCreatedAt
+		period.UpdatedAt = periodUpdatedAt
 		t.Period = period
 	}
 
 	return t, nil
 }
 
-func (r *sqliteTransactionRepository) Update(t *domain.Transaction) error {
-	now := formatTime(time.Now())
+func (r *transactionRepository) Update(t *domain.Transaction) error {
+	now := time.Now()
+	nowStr := formatTime(now)
 	result, err := r.db.Exec(
-		`UPDATE transactions SET period_id = ?, category_id = ?, date = ?, amount = ?, type = ?, note = ?, updated_at = ?
-		 WHERE id = ?`,
-		t.PeriodID, t.CategoryID, t.Date, t.Amount, t.Type, t.Note, now, t.ID,
+		`UPDATE transactions SET period_id = $1, category_id = $2, date = $3, amount = $4, type = $5, note = $6, updated_at = $7
+		 WHERE id = $8`,
+		t.PeriodID, t.CategoryID, t.Date, t.Amount, t.Type, t.Note, nowStr, t.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update transaction: %w", err)
@@ -181,12 +183,12 @@ func (r *sqliteTransactionRepository) Update(t *domain.Transaction) error {
 	if rows == 0 {
 		return fmt.Errorf("transaction not found: %d", t.ID)
 	}
-	t.UpdatedAt, _ = parseTime(now)
+	t.UpdatedAt = now
 	return nil
 }
 
-func (r *sqliteTransactionRepository) Delete(id int64) error {
-	result, err := r.db.Exec(`DELETE FROM transactions WHERE id = ?`, id)
+func (r *transactionRepository) Delete(id int64) error {
+	result, err := r.db.Exec(`DELETE FROM transactions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete transaction: %w", err)
 	}
