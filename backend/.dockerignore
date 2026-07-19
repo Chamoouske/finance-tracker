@@ -9,9 +9,6 @@
 Dockerfile
 .dockerignore
 
-# Dependencies lock (go.mod is sufficient)
-go.sum
-
 # Build output
 build/
 
