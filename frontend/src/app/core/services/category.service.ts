@@ -33,14 +33,14 @@ export class CategoryService extends BaseApiService {
      * Creates a new category.
      */
     create(payload: CreateCategoryPayload): Observable<Category> {
-        return this.post<Category>(this.toSnakeCase(payload));
+        return this.post<Category>(payload);
     }
 
     /**
      * Updates an existing category.
      */
     update(id: number, payload: UpdateCategoryPayload): Observable<Category> {
-        return this.patch<Category>(id, this.toSnakeCase(payload));
+        return this.patch<Category>(id, payload);
     }
 
     /**
@@ -50,22 +50,4 @@ export class CategoryService extends BaseApiService {
         return this.deleteRequest<{ message: string }>(id);
     }
 
-    /**
-     * Converts camelCase keys to snake_case for the API.
-     */
-    private toSnakeCase(payload: CreateCategoryPayload | UpdateCategoryPayload): Record<string, unknown> {
-        const result: Record<string, unknown> = {};
-        if ('groupId' in payload) result['group_id'] = payload.groupId;
-        if ('name' in payload) result['name'] = payload.name;
-        if ('expenseType' in payload && payload.expenseType !== undefined) {
-            result['expense_type'] = payload.expenseType;
-        }
-        if ('sortOrder' in payload && payload.sortOrder !== undefined) {
-            result['sort_order'] = payload.sortOrder;
-        }
-        if ('active' in payload && payload.active !== undefined) {
-            result['active'] = payload.active;
-        }
-        return result;
-    }
 }

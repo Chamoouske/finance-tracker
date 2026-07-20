@@ -3,6 +3,10 @@
 > **Base URL**: `http://localhost:8080/api`
 > **Content-Type**: `application/json`
 
+> **Convenção JSON**: requests e responses usam `camelCase`. A única exceção é o objeto
+> `BalanceSnapshot` de `GET /api/balance`, que preserva `snake_case` por corresponder
+> diretamente à tabela materializada.
+
 ---
 
 ## Índice
@@ -41,7 +45,7 @@ Cria um novo lançamento financeiro. O período é criado automaticamente ao ins
 
 ```json
 {
-  "category_id": 1,
+  "categoryId": 1,
   "date": "2026-05-10",
   "amount": 150000,
   "type": "expense",
@@ -51,7 +55,7 @@ Cria um novo lançamento financeiro. O período é criado automaticamente ao ins
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
-| `category_id` | integer | sim | ID da categoria |
+| `categoryId` | integer | sim | ID da categoria |
 | `date` | string | sim | Data ISO 8601 (YYYY-MM-DD) |
 | `amount` | integer | sim | Valor em centavos (R$ 1.500,00 → 150000) |
 | `type` | string | sim | `income`, `investment` ou `expense` |
@@ -65,29 +69,29 @@ Cria um novo lançamento financeiro. O período é criado automaticamente ao ins
   "data": {
     "transaction": {
       "id": 42,
-      "period_id": 5,
-      "category_id": 1,
+      "periodId": 5,
+      "categoryId": 1,
       "date": "2026-05-10",
       "amount": 150000,
       "type": "expense",
       "note": "Aluguel referente a maio/2026",
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-09T22:00:00Z",
-      "category_name": "Aluguel",
-      "period_label": "2026-05"
+      "createdAt": "2026-05-09T22:00:00Z",
+      "updatedAt": "2026-05-09T22:00:00Z",
+      "categoryName": "Aluguel",
+      "periodLabel": "2026-05"
     },
     "summary": {
       "id": 1,
-      "period_id": 5,
-      "revenue_total": 0,
-      "investment_total": 0,
-      "fixed_expense_total": 150000,
-      "variable_expense_total": 0,
-      "extra_expense_total": 0,
-      "additional_expense_total": 0,
+      "periodId": 5,
+      "revenueTotal": 0,
+      "investmentTotal": 0,
+      "fixedExpenseTotal": 150000,
+      "variableExpenseTotal": 0,
+      "extraExpenseTotal": 0,
+      "additionalExpenseTotal": 0,
       "balance": -150000,
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-09T22:00:00Z"
+      "createdAt": "2026-05-09T22:00:00Z",
+      "updatedAt": "2026-05-09T22:00:00Z"
     }
   }
 }
@@ -140,29 +144,29 @@ Retorna transações filtradas por período.
     "transactions": [
       {
         "id": 42,
-        "period_id": 5,
-        "category_id": 1,
+        "periodId": 5,
+        "categoryId": 1,
         "date": "2026-05-10",
         "amount": 150000,
         "type": "expense",
         "note": "Aluguel referente a maio/2026",
-        "created_at": "2026-05-09T22:00:00Z",
-        "updated_at": "2026-05-09T22:00:00Z",
-        "category_name": "Aluguel",
-        "period_label": "2026-05"
+        "createdAt": "2026-05-09T22:00:00Z",
+        "updatedAt": "2026-05-09T22:00:00Z",
+        "categoryName": "Aluguel",
+        "periodLabel": "2026-05"
       },
       {
         "id": 43,
-        "period_id": 5,
-        "category_id": 2,
+        "periodId": 5,
+        "categoryId": 2,
         "date": "2026-05-11",
         "amount": 45000,
         "type": "expense",
         "note": "Conta de luz",
-        "created_at": "2026-05-10T08:30:00Z",
-        "updated_at": "2026-05-10T08:30:00Z",
-        "category_name": "Energia Elétrica",
-        "period_label": "2026-05"
+        "createdAt": "2026-05-10T08:30:00Z",
+        "updatedAt": "2026-05-10T08:30:00Z",
+        "categoryName": "Energia Elétrica",
+        "periodLabel": "2026-05"
       }
     ],
     "total": 2,
@@ -196,7 +200,7 @@ Atualiza parcialmente uma transação existente. O período é recalculado se a 
 ```json
 {
   "type": "income",
-  "category_id": 3,
+  "categoryId": 3,
   "amount": 160000,
   "date": "2026-05-15",
   "note": "Aluguel ajustado - maio/2026"
@@ -206,7 +210,7 @@ Atualiza parcialmente uma transação existente. O período é recalculado se a 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
 | `type` | string | não | `income`, `investment` ou `expense` |
-| `category_id` | integer | não | ID da categoria |
+| `categoryId` | integer | não | ID da categoria |
 | `amount` | integer | não | Valor em centavos |
 | `date` | string | não | Data ISO 8601 (YYYY-MM-DD) |
 | `note` | string | não | Descrição/observação |
@@ -219,29 +223,29 @@ Atualiza parcialmente uma transação existente. O período é recalculado se a 
   "data": {
     "transaction": {
       "id": 42,
-      "period_id": 5,
-      "category_id": 3,
+      "periodId": 5,
+      "categoryId": 3,
       "date": "2026-05-15",
       "amount": 160000,
       "type": "income",
       "note": "Aluguel ajustado - maio/2026",
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-10T10:00:00Z",
-      "category_name": "Aluguel + Condomínio",
-      "period_label": "2026-05"
+      "createdAt": "2026-05-09T22:00:00Z",
+      "updatedAt": "2026-05-10T10:00:00Z",
+      "categoryName": "Aluguel + Condomínio",
+      "periodLabel": "2026-05"
     },
     "summary": {
       "id": 1,
-      "period_id": 5,
-      "revenue_total": 160000,
-      "investment_total": 0,
-      "fixed_expense_total": 0,
-      "variable_expense_total": 0,
-      "extra_expense_total": 0,
-      "additional_expense_total": 0,
+      "periodId": 5,
+      "revenueTotal": 160000,
+      "investmentTotal": 0,
+      "fixedExpenseTotal": 0,
+      "variableExpenseTotal": 0,
+      "extraExpenseTotal": 0,
+      "additionalExpenseTotal": 0,
       "balance": 160000,
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-10T10:00:00Z"
+      "createdAt": "2026-05-09T22:00:00Z",
+      "updatedAt": "2026-05-10T10:00:00Z"
     }
   }
 }
@@ -288,16 +292,16 @@ Remove uma transação e recalcula o summary do período.
     "message": "Transação excluída com sucesso",
     "summary": {
       "id": 1,
-      "period_id": 5,
-      "revenue_total": 0,
-      "investment_total": 0,
-      "fixed_expense_total": 0,
-      "variable_expense_total": 0,
-      "extra_expense_total": 0,
-      "additional_expense_total": 0,
+      "periodId": 5,
+      "revenueTotal": 0,
+      "investmentTotal": 0,
+      "fixedExpenseTotal": 0,
+      "variableExpenseTotal": 0,
+      "extraExpenseTotal": 0,
+      "additionalExpenseTotal": 0,
       "balance": 0,
-      "created_at": "2026-05-09T22:00:00Z",
-      "updated_at": "2026-05-10T10:00:00Z"
+      "createdAt": "2026-05-09T22:00:00Z",
+      "updatedAt": "2026-05-10T10:00:00Z"
     }
   }
 }
@@ -348,27 +352,27 @@ Retorna todas as categorias ativas e inativas, agrupadas por grupo.
         "id": 1,
         "name": "Receitas",
         "type": "revenue",
-        "sort_order": 1,
+        "sortOrder": 1,
         "categories": [
           {
             "id": 1,
-            "group_id": 1,
+            "groupId": 1,
             "name": "Salário",
-            "expense_type": null,
-            "sort_order": 1,
+            "expenseType": null,
+            "sortOrder": 1,
             "active": true,
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z"
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
           },
           {
             "id": 2,
-            "group_id": 1,
+            "groupId": 1,
             "name": "Freelance",
-            "expense_type": null,
-            "sort_order": 2,
+            "expenseType": null,
+            "sortOrder": 2,
             "active": true,
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z"
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
           }
         ]
       },
@@ -376,17 +380,17 @@ Retorna todas as categorias ativas e inativas, agrupadas por grupo.
         "id": 2,
         "name": "Despesas Fixas",
         "type": "expense",
-        "sort_order": 2,
+        "sortOrder": 2,
         "categories": [
           {
             "id": 3,
-            "group_id": 2,
+            "groupId": 2,
             "name": "Aluguel",
-            "expense_type": "fixed",
-            "sort_order": 1,
+            "expenseType": "fixed",
+            "sortOrder": 1,
             "active": true,
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z"
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
           }
         ]
       }
@@ -407,19 +411,19 @@ Cria uma nova categoria dentro de um grupo existente.
 
 ```json
 {
-  "group_id": 2,
+  "groupId": 2,
   "name": "Internet",
-  "expense_type": "fixed",
-  "sort_order": 3
+  "expenseType": "fixed",
+  "sortOrder": 3
 }
 ```
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
-| `group_id` | integer | sim | ID do grupo (deve existir) |
+| `groupId` | integer | sim | ID do grupo (deve existir) |
 | `name` | string | sim | Nome da categoria |
-| `expense_type` | string | condicional | `fixed`, `variable`, `extra`, `additional`. Obrigatório se o grupo for `expense` |
-| `sort_order` | integer | não | Ordem de exibição (default: 0) |
+| `expenseType` | string | condicional | `fixed`, `variable`, `extra`, `additional`. Obrigatório se o grupo for `expense` |
+| `sortOrder` | integer | não | Ordem de exibição (default: 0) |
 
 **Response** `201 Created`:
 
@@ -428,13 +432,13 @@ Cria uma nova categoria dentro de um grupo existente.
   "success": true,
   "data": {
     "id": 10,
-    "group_id": 2,
+    "groupId": 2,
     "name": "Internet",
-    "expense_type": "fixed",
-    "sort_order": 3,
+    "expenseType": "fixed",
+    "sortOrder": 3,
     "active": true,
-    "created_at": "2026-05-09T22:00:00Z",
-    "updated_at": "2026-05-09T22:00:00Z"
+    "createdAt": "2026-05-09T22:00:00Z",
+    "updatedAt": "2026-05-09T22:00:00Z"
   }
 }
 ```
@@ -446,7 +450,7 @@ Cria uma nova categoria dentro de um grupo existente.
   "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "expense_type é obrigatório para categorias do tipo 'expense'"
+    "message": "expenseType é obrigatório para categorias do tipo 'expense'"
   }
 }
 ```
@@ -475,14 +479,43 @@ Atualiza parcialmente uma categoria.
   "success": true,
   "data": {
     "id": 10,
-    "group_id": 2,
+    "groupId": 2,
     "name": "Internet Fibra",
-    "expense_type": "fixed",
-    "sort_order": 3,
+    "expenseType": "fixed",
+    "sortOrder": 3,
     "active": false,
-    "created_at": "2026-05-09T22:00:00Z",
-    "updated_at": "2026-05-10T10:00:00Z"
+    "createdAt": "2026-05-09T22:00:00Z",
+    "updatedAt": "2026-05-10T10:00:00Z"
   }
+}
+```
+
+**Response** `404 Not Found`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Categoria com ID 999 não encontrada"
+  }
+}
+```
+
+---
+
+### 2.4 Excluir Categoria
+
+Exclui uma categoria existente. A exclusão é recusada quando ainda existem transações vinculadas.
+
+**Endpoint**: `DELETE /api/categories/:id`
+
+**Response** `200 OK`:
+
+```json
+{
+  "success": true,
+  "data": { "message": "Categoria excluída com sucesso" }
 }
 ```
 
@@ -520,32 +553,32 @@ Retorna todos os meses que possuem lançamentos, ordenados do mais recente para 
         "year": 2026,
         "month": 5,
         "label": "2026-05",
-        "closed_at": null,
+        "closedAt": null,
         "balance": 350000,
-        "revenue_total": 500000,
-        "investment_total": 0,
-        "fixed_expense_total": 150000,
-        "variable_expense_total": 0,
-        "extra_expense_total": 0,
-        "additional_expense_total": 0,
-        "created_at": "2026-05-01T00:00:00Z",
-        "updated_at": "2026-05-10T10:00:00Z"
+        "revenueTotal": 500000,
+        "investmentTotal": 0,
+        "fixedExpenseTotal": 150000,
+        "variableExpenseTotal": 0,
+        "extraExpenseTotal": 0,
+        "additionalExpenseTotal": 0,
+        "createdAt": "2026-05-01T00:00:00Z",
+        "updatedAt": "2026-05-10T10:00:00Z"
       },
       {
         "id": 4,
         "year": 2026,
         "month": 4,
         "label": "2026-04",
-        "closed_at": "2026-05-01T00:00:00Z",
+        "closedAt": "2026-05-01T00:00:00Z",
         "balance": 270000,
-        "revenue_total": 500000,
-        "investment_total": 100000,
-        "fixed_expense_total": 180000,
-        "variable_expense_total": 100000,
-        "extra_expense_total": 50000,
-        "additional_expense_total": 0,
-        "created_at": "2026-04-01T00:00:00Z",
-        "updated_at": "2026-05-01T00:00:00Z"
+        "revenueTotal": 500000,
+        "investmentTotal": 100000,
+        "fixedExpenseTotal": 180000,
+        "variableExpenseTotal": 100000,
+        "extraExpenseTotal": 50000,
+        "additionalExpenseTotal": 0,
+        "createdAt": "2026-04-01T00:00:00Z",
+        "updatedAt": "2026-05-01T00:00:00Z"
       }
     ]
   }
@@ -585,9 +618,9 @@ Fecha um período mensal, impedindo novas alterações. Todas as transações ex
       "id": 4,
       "year": 2026,
       "month": 4,
-      "closed_at": "2026-05-09T22:00:00Z",
-      "created_at": "2026-04-01T00:00:00Z",
-      "updated_at": "2026-05-09T22:00:00Z"
+      "closedAt": "2026-05-09T22:00:00Z",
+      "createdAt": "2026-04-01T00:00:00Z",
+      "updatedAt": "2026-05-09T22:00:00Z"
     }
   }
 }
@@ -641,16 +674,16 @@ Retorna o resumo financeiro consolidado de um mês específico.
   "data": {
     "summary": {
       "id": 1,
-      "period_id": 5,
-      "revenue_total": 500000,
-      "investment_total": 200000,
-      "fixed_expense_total": 150000,
-      "variable_expense_total": 120000,
-      "extra_expense_total": 40000,
-      "additional_expense_total": 0,
+      "periodId": 5,
+      "revenueTotal": 500000,
+      "investmentTotal": 200000,
+      "fixedExpenseTotal": 150000,
+      "variableExpenseTotal": 120000,
+      "extraExpenseTotal": 40000,
+      "additionalExpenseTotal": 0,
       "balance": 390000,
-      "created_at": "2026-05-01T00:00:00Z",
-      "updated_at": "2026-05-10T10:00:00Z"
+      "createdAt": "2026-05-01T00:00:00Z",
+      "updatedAt": "2026-05-10T10:00:00Z"
     },
     "period": "2026-05"
   }
@@ -660,7 +693,7 @@ Retorna o resumo financeiro consolidado de um mês específico.
 **Regra de cálculo do balance**:
 
 ```
-balance = revenue_total + investment_total - fixed_expense_total - variable_expense_total - extra_expense_total - additional_expense_total
+balance = revenueTotal + investmentTotal - fixedExpenseTotal - variableExpenseTotal - extraExpenseTotal - additionalExpenseTotal
 ```
 
 **Response** `400 Bad Request` (período inválido):
@@ -779,9 +812,9 @@ Todos os endpoints seguem o mesmo formato de erro:
 | Transação | `amount` | Deve ser positivo (> 0) |
 | Transação | `type` | Deve ser `income`, `investment` ou `expense` |
 | Transação | `note` | String não vazia (mín. 1 caractere) |
-| Transação | `category_id` | Deve referenciar uma categoria ativa existente |
+| Transação | `categoryId` | Deve referenciar uma categoria ativa existente |
 | Categoria | `name` | String não vazia, única por grupo |
-| Categoria | `expense_type` | Obrigatório se group.type = `expense` |
+| Categoria | `expenseType` | Obrigatório se group.type = `expense` |
 | Período | `year` | Deve ser >= 2020 |
 | Período | `month` | Deve estar entre 1 e 12 |
 | Período | close | Período deve existir e ter transações |
@@ -798,7 +831,7 @@ Todos os endpoints seguem o mesmo formato de erro:
 curl -X POST http://localhost:8080/api/transactions \
   -H "Content-Type: application/json" \
   -d '{
-    "category_id": 1,
+    "categoryId": 1,
     "date": "2026-05-10",
     "amount": 500000,
     "type": "income",
@@ -861,7 +894,7 @@ Resposta esperada: `200 OK`
 curl -X POST http://localhost:8080/api/transactions \
   -H "Content-Type: application/json" \
   -d '{
-    "category_id": 1,
+    "categoryId": 1,
     "date": "2026-05-10",
     "amount": 500000,
     "type": "income"

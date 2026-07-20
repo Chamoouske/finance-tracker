@@ -981,6 +981,19 @@ Presente na sidebar, o seletor de período permite navegar entre meses usando bo
 
 ## 7. Plano de Implementação
 
+### Estado atual
+
+Revisão em **20/07/2026**:
+
+- **Fases 1, 2, 3, 4 e 6 concluídas** no código atual.
+- Os **12 endpoints de negócio e o health check** estão registrados no `http.ServeMux`.
+- O frontend possui integração para transações, categorias, períodos, resumo e balanço.
+- O contrato HTTP usa `camelCase`; somente `BalanceSnapshot` usa `snake_case`.
+- A **Fase 5 permanece fora do escopo atual**, pois foi definida como evolução futura.
+
+> A tabela abaixo é mantida como histórico da ordem de implementação. O estado acima
+> substitui a interpretação da tabela como lista de tarefas pendentes.
+
 ### Fase 1 — Fundação
 
 | Etapa | Tarefa | Depende de |

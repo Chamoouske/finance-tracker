@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/chamoouske/finance-tracker/internal/domain"
 	"github.com/chamoouske/finance-tracker/internal/service"
@@ -72,6 +73,13 @@ func (h *categoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 400, "Erro ao decodificar JSON: "+err.Error())
 		return
 	}
+	// MantÃ©m compatibilidade com clientes antigos; o contrato oficial usa camelCase.
+	if v, ok := updates["expense_type"]; ok {
+		updates["expenseType"] = v
+	}
+	if v, ok := updates["sort_order"]; ok {
+		updates["sortOrder"] = v
+	}
 
 	existing, err := h.service.FindByID(id)
 	if err != nil {
@@ -117,7 +125,11 @@ func (h *categoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.Delete(id); err != nil {
-		respondError(w, 400, err.Error())
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		respondError(w, status, err.Error())
 		return
 	}
 

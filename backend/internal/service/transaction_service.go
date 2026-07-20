@@ -80,6 +80,10 @@ func (s *transactionService) Create(t *domain.Transaction) (*domain.Transaction,
 	}
 
 	t.PeriodID = period.ID
+	t.Category = category
+	t.CategoryName = category.Name
+	t.Period = period
+	t.PeriodLabel = fmt.Sprintf("%04d-%02d", period.Year, period.Month)
 
 	if err := s.transactionRepo.Create(t); err != nil {
 		return nil, nil, err
@@ -133,6 +137,9 @@ func (s *transactionService) Update(id int64, updates map[string]interface{}) (*
 	}
 
 	newPeriodID := existing.PeriodID
+	if v, ok := updates["category_id"]; ok {
+		updates["categoryId"] = v
+	}
 	if v, ok := updates["categoryId"]; ok {
 		catID, _ := v.(float64)
 		existing.CategoryID = int64(catID)
@@ -156,6 +163,9 @@ func (s *transactionService) Update(id int64, updates map[string]interface{}) (*
 			return nil, nil, err
 		}
 		newPeriodID = newPeriod.ID
+		if newPeriod.ClosedAt != nil {
+			return nil, nil, fmt.Errorf("perÃ­odo %04d-%02d jÃ¡ estÃ¡ fechado. NÃ£o Ã© possÃ­vel mover transaÃ§Ãµes para ele", year, month)
+		}
 	}
 	if v, ok := updates["amount"]; ok {
 		amt, _ := v.(float64)
@@ -203,6 +213,14 @@ func (s *transactionService) Update(id int64, updates map[string]interface{}) (*
 	}
 
 	summary, _ := s.summaryRepo.FindByPeriod(existing.PeriodID)
+	if category, err := s.categoryRepo.FindByID(existing.CategoryID); err == nil {
+		existing.Category = category
+		existing.CategoryName = category.Name
+	}
+	if currentPeriod, err := s.periodRepo.FindByID(existing.PeriodID); err == nil {
+		existing.Period = currentPeriod
+		existing.PeriodLabel = fmt.Sprintf("%04d-%02d", currentPeriod.Year, currentPeriod.Month)
+	}
 
 	return existing, summary, nil
 }

@@ -20,11 +20,11 @@ type APIError struct {
 }
 
 var errorCodes = map[int]string{
-	400: "validation_error",
-	404: "not_found",
-	409: "already_closed",
-	422: "validation_error",
-	500: "internal_error",
+	400: "INVALID_REQUEST",
+	404: "NOT_FOUND",
+	409: "CONFLICT",
+	422: "VALIDATION_ERROR",
+	500: "INTERNAL_ERROR",
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -47,7 +47,7 @@ func respondSuccess(w http.ResponseWriter, status int, data interface{}) {
 func respondError(w http.ResponseWriter, status int, message string) {
 	code := errorCodes[status]
 	if code == "" {
-		code = "internal_error"
+		code = "INTERNAL_ERROR"
 	}
 	respondJSON(w, status, APIResponse{
 		Success: false,

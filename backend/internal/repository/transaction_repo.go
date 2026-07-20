@@ -151,6 +151,7 @@ func scanFullTransaction(scanner interface {
 		cat.CreatedAt = catCreatedAt
 		cat.UpdatedAt = catUpdatedAt
 		t.Category = cat
+		t.CategoryName = cat.Name
 	}
 
 	if period.ID > 0 {
@@ -163,6 +164,7 @@ func scanFullTransaction(scanner interface {
 		period.CreatedAt = periodCreatedAt
 		period.UpdatedAt = periodUpdatedAt
 		t.Period = period
+		t.PeriodLabel = fmt.Sprintf("%04d-%02d", period.Year, period.Month)
 	}
 
 	return t, nil
