@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+repository_root="$(git rev-parse --show-toplevel)"
+
+echo "pre-push: building and publishing Finance Tracker Docker images"
+cd "$repository_root/backend"
+go run ./cmd/publish-images -root "$repository_root"

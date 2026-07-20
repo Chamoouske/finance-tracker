@@ -1147,3 +1147,20 @@ SYNC_INTERVAL=300                # Intervalo do SyncJob em segundos
 ### Frontend
 
 O frontend obtém a URL da API em tempo de execução via `window.__env__.apiUrl`, substituído pelo `docker-entrypoint.sh` em produção. Em desenvolvimento (`ng serve`), o [`proxy.conf.json`](frontend/proxy.conf.json) redireciona `/api/*` para `http://localhost:8080`.
+
+### Publicação local de imagens
+
+O clone usa o hook versionado [`.githooks/pre-push`](../.githooks/pre-push). Antes de enviar
+commits, ele executa o publicador Go e aborta o `git push` se qualquer comando falhar:
+
+1. `docker build -t chamoouske/finance-tracker-backend:latest backend`
+2. `docker push chamoouske/finance-tracker-backend:latest`
+3. `docker build -t chamoouske/finance-tracker-frontend:latest frontend`
+4. `docker push chamoouske/finance-tracker-frontend:latest`
+
+O Docker Desktop deve estar ativo e o Docker CLI deve estar autenticado no Docker Hub como
+um usuário com permissão para publicar no namespace `chamoouske`. A ativação por clone é feita com:
+
+```bash
+git config core.hooksPath .githooks
+```
