@@ -989,7 +989,7 @@ Revisão em **20/07/2026**:
 - Os **12 endpoints de negócio e o health check** estão registrados no `http.ServeMux`.
 - O frontend possui integração para transações, categorias, períodos, resumo e balanço.
 - O contrato HTTP usa `camelCase`; somente `BalanceSnapshot` usa `snake_case`.
-- A **Fase 5 permanece fora do escopo atual**, pois foi definida como evolução futura.
+- A **Fase 5 foi concluída** com transporte MCP Streamable HTTP e cinco ferramentas.
 
 > A tabela abaixo é mantida como histórico da ordem de implementação. O estado acima
 > substitui a interpretação da tabela como lista de tarefas pendentes.
@@ -1043,13 +1043,17 @@ Revisão em **20/07/2026**:
 | 4.4 | Docker Compose com frontend + backend | 2.10, 1.5 |
 | 4.5 | README com instruções de setup | 4.4 |
 
-### Fase 5 — MCP e Automação (Futuro)
+### Fase 5 — MCP e Automação
 
 | Etapa | Tarefa | Depende de |
 |-------|--------|-----------|
 | 5.1 | Endpoints MCP para consulta de dados | 2.0 |
 | 5.2 | Endpoints MCP para criação de transações | 2.0 |
 | 5.3 | Documentação MCP | 5.1, 5.2 |
+
+**Status:** concluída em 20/07/2026. O endpoint Streamable HTTP stateless `POST /mcp`
+implementa JSON-RPC 2.0, inicialização, descoberta (`tools/list`) e execução (`tools/call`).
+As ferramentas disponíveis e exemplos estão documentados em [`MCP.md`](MCP.md).
 
 ### Fase 6 — Visão Geral + Job Periódico
 
