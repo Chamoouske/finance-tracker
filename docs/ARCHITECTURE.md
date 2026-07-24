@@ -14,7 +14,7 @@
 | HTTP | Angular HttpClient | — |
 | Backend | Go (Golang) | 1.22+ |
 | Database | SQLite (dev) / PostgreSQL (produção) | 3.x / 16+ |
-| MCP | Model Context Protocol | 1.x |
+| MCP | TypeScript + SDK oficial Model Context Protocol | 1.29 |
 
 ---
 
@@ -24,6 +24,7 @@
 finance-tracker/
 │
 ├── backend/                          # API REST em Go
+├── mcp/                              # Servidor MCP TypeScript; cliente HTTP da API Go
 │   ├── cmd/
 │   │   └── server/
 │   │       └── main.go               # Entry point, wire dependencies, rotas, CORS
@@ -989,7 +990,8 @@ Revisão em **20/07/2026**:
 - Os **12 endpoints de negócio e o health check** estão registrados no `http.ServeMux`.
 - O frontend possui integração para transações, categorias, períodos, resumo e balanço.
 - O contrato HTTP usa `camelCase`; somente `BalanceSnapshot` usa `snake_case`.
-- A **Fase 5 foi concluída** com transporte MCP Streamable HTTP e cinco ferramentas.
+- A **Fase 5 foi concluída** em uma aplicação TypeScript independente, com transporte MCP
+  Streamable HTTP e cinco ferramentas que consomem exclusivamente a API Go.
 
 > A tabela abaixo é mantida como histórico da ordem de implementação. O estado acima
 > substitui a interpretação da tabela como lista de tarefas pendentes.
@@ -1051,8 +1053,9 @@ Revisão em **20/07/2026**:
 | 5.2 | Endpoints MCP para criação de transações | 2.0 |
 | 5.3 | Documentação MCP | 5.1, 5.2 |
 
-**Status:** concluída em 20/07/2026. O endpoint Streamable HTTP stateless `POST /mcp`
-implementa JSON-RPC 2.0, inicialização, descoberta (`tools/list`) e execução (`tools/call`).
+**Status:** concluída e extraída para TypeScript em 24/07/2026. O endpoint Streamable HTTP
+stateless `POST /mcp` na porta `3001` implementa inicialização, descoberta (`tools/list`) e
+execução (`tools/call`). O serviço não acessa o banco e usa `GO_API_URL` para chamar o backend Go.
 As ferramentas disponíveis e exemplos estão documentados em [`MCP.md`](MCP.md).
 
 ### Fase 6 — Visão Geral + Job Periódico
@@ -1157,6 +1160,8 @@ commits, ele executa o publicador Go e aborta o `git push` se qualquer comando f
 2. `docker push chamoouske/finance-tracker-backend:latest`
 3. `docker build -t chamoouske/finance-tracker-frontend:latest frontend`
 4. `docker push chamoouske/finance-tracker-frontend:latest`
+5. `docker build -t chamoouske/finance-tracker-mcp:latest mcp`
+6. `docker push chamoouske/finance-tracker-mcp:latest`
 
 O Docker Desktop deve estar ativo e o Docker CLI deve estar autenticado no Docker Hub como
 um usuário com permissão para publicar no namespace `chamoouske`. A ativação por clone é feita com:

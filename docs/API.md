@@ -7,7 +7,8 @@
 > `BalanceSnapshot` de `GET /api/balance`, que preserva `snake_case` por corresponder
 > diretamente à tabela materializada.
 >
-> A integração Model Context Protocol usa o endpoint `POST /mcp`, fora do prefixo `/api`.
+> A integração Model Context Protocol é servida pela aplicação TypeScript em
+> `http://localhost:3001/mcp`, fora do backend Go e do prefixo `/api`.
 > Consulte [`MCP.md`](MCP.md) para inicialização, descoberta e chamadas de ferramentas.
 
 ---

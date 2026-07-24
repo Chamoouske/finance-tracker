@@ -22,7 +22,7 @@ func NewDockerPublisher(runner CommandRunner) *DockerPublisher {
 }
 
 func (p *DockerPublisher) Publish(repositoryRoot string) error {
-	for _, component := range []string{"backend", "frontend"} {
+	for _, component := range []string{"backend", "frontend", "mcp"} {
 		image := imagePrefix + component + ":latest"
 		contextPath := filepath.Join(repositoryRoot, component)
 		if err := p.runner.Run("docker", "build", "-t", image, contextPath); err != nil {

@@ -1,12 +1,18 @@
 # Integração MCP
 
-O Finance Tracker expõe um servidor MCP stateless por Streamable HTTP em:
+O Finance Tracker expõe um servidor MCP TypeScript stateless por Streamable HTTP em:
 
 ```text
-POST http://localhost:8080/mcp
+POST http://localhost:3001/mcp
 ```
 
-O transporte usa JSON-RPC 2.0 e negocia a revisão `2025-06-18`. O cliente deve enviar `Accept: application/json, text/event-stream`. Origens HTTP são aceitas somente quando ausentes ou locais (`localhost` e `127.0.0.1`).
+O serviço usa o SDK TypeScript oficial do MCP. Ele não se conecta ao PostgreSQL nem ao SQLite:
+todas as ferramentas chamam a API REST Go definida por `GO_API_URL` (padrão local:
+`http://localhost:8080`; no Compose: `http://backend:8080`). Assim, validações, períodos,
+resumos e persistência continuam exclusivamente no backend Go.
+
+O transporte usa JSON-RPC 2.0 sobre Streamable HTTP. O cliente deve enviar
+`Accept: application/json, text/event-stream`.
 
 ## Ferramentas
 
@@ -47,4 +53,4 @@ O transporte usa JSON-RPC 2.0 e negocia a revisão `2025-06-18`. O cliente deve 
 }
 ```
 
-Erros de protocolo usam o objeto `error` do JSON-RPC. Erros de validação, banco de dados ou regras financeiras são resultados de ferramenta com `isError: true`, permitindo que o cliente MCP apresente ou corrija a chamada.
+O SDK negocia a versão do protocolo com o cliente; o exemplo acima usa a revisão `2025-06-18`, que permanece suportada. Erros de protocolo usam o objeto `error` do JSON-RPC. Erros de validação, comunicação com a API Go ou regras financeiras retornados pela API são resultados de ferramenta com `isError: true`, permitindo que o cliente MCP apresente ou corrija a chamada.

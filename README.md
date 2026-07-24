@@ -4,7 +4,8 @@ Aplicação web para controle financeiro mensal, com transações, categorias, f
 
 O projeto é um monorepo composto por:
 
-- Backend em Go, com API REST e servidor MCP.
+- Backend em Go, responsável exclusivamente pela API REST e pelas regras financeiras.
+- Servidor MCP independente em TypeScript, que consome somente a API REST Go.
 - Frontend em Angular e Tailwind CSS.
 - SQLite para desenvolvimento local ou PostgreSQL via Docker Compose.
 - Job periódico para recalcular snapshots do balanço.
@@ -29,7 +30,7 @@ O projeto é um monorepo composto por:
 | Frontend | Angular, TypeScript, RxJS, Tailwind CSS |
 | Infraestrutura | Docker, Docker Compose, Nginx |
 | Qualidade | Go test, Vitest, cobertura diferencial no GitHub Actions |
-| Integração | REST e Model Context Protocol via Streamable HTTP |
+| Integração | REST em Go e MCP TypeScript via Streamable HTTP |
 
 ## Estrutura
 
@@ -42,6 +43,7 @@ finance-tracker/
 │   ├── migrations/              # Migrations SQLite e PostgreSQL
 │   └── seeds/                   # Categorias iniciais
 ├── frontend/                    # Aplicação Angular
+├── mcp/                         # Servidor MCP TypeScript; cliente da API Go
 ├── docs/                        # API, arquitetura, MCP e validação
 ├── .githooks/pre-push           # Build e push local das imagens
 └── docker-compose.yml
@@ -67,7 +69,8 @@ Serviços disponíveis:
 | Frontend | <http://localhost:3000> |
 | API REST | <http://localhost:8080/api> |
 | Health check | <http://localhost:8080/api/health> |
-| MCP | <http://localhost:8080/mcp> |
+| MCP | <http://localhost:3001/mcp> |
+| Health check MCP | <http://localhost:3001/health> |
 
 Para encerrar:
 
@@ -158,7 +161,9 @@ O contrato completo, exemplos e erros estão em [docs/API.md](docs/API.md).
 
 ## Model Context Protocol
 
-O endpoint `POST /mcp` implementa JSON-RPC 2.0 e a revisão MCP `2025-06-18`.
+O serviço independente em `mcp/` usa o SDK TypeScript oficial. Seu endpoint `POST /mcp`,
+na porta `3001`, implementa JSON-RPC 2.0 e Streamable HTTP. Ele não possui acesso ao banco:
+todas as ferramentas consomem exclusivamente a API Go configurada em `GO_API_URL`.
 
 Ferramentas disponíveis:
 
@@ -208,6 +213,8 @@ docker build -t chamoouske/finance-tracker-backend:latest backend
 docker push chamoouske/finance-tracker-backend:latest
 docker build -t chamoouske/finance-tracker-frontend:latest frontend
 docker push chamoouske/finance-tracker-frontend:latest
+docker build -t chamoouske/finance-tracker-mcp:latest mcp
+docker push chamoouske/finance-tracker-mcp:latest
 ```
 
 Se qualquer comando falhar, o envio dos commits é cancelado.

@@ -33,4 +33,12 @@ cd frontend
 npm test -- --watch=false --coverage
 ```
 
+MCP TypeScript:
+
+```bash
+cd mcp
+npm test
+npm run build
+```
+
 Pull requests executam a verificação diferencial configurada em `.github/workflows/tdd-coverage.yml`.

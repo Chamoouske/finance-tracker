@@ -6,3 +6,6 @@ backend/coverage.out
 backend/coverage.xml
 backend/mcp-cover
 backend/hook-coverage.out
+mcp/node_modules/
+mcp/dist/
+mcp/coverage/

@@ -35,7 +35,7 @@ func (r *runnerStub) Run(name string, args ...string) error {
 	return nil
 }
 
-func TestPublisherBuildsAndPushesBothImages(t *testing.T) {
+func TestPublisherBuildsAndPushesAllImages(t *testing.T) {
 	runner := &runnerStub{}
 	publisher := NewDockerPublisher(runner)
 
@@ -48,6 +48,8 @@ func TestPublisherBuildsAndPushesBothImages(t *testing.T) {
 		{"docker", "push", "chamoouske/finance-tracker-backend:latest"},
 		{"docker", "build", "-t", "chamoouske/finance-tracker-frontend:latest", `C:\repo\frontend`},
 		{"docker", "push", "chamoouske/finance-tracker-frontend:latest"},
+		{"docker", "build", "-t", "chamoouske/finance-tracker-mcp:latest", `C:\repo\mcp`},
+		{"docker", "push", "chamoouske/finance-tracker-mcp:latest"},
 	}
 	if !reflect.DeepEqual(runner.commands, want) {
 		t.Fatalf("commands = %#v, want %#v", runner.commands, want)
@@ -55,7 +57,7 @@ func TestPublisherBuildsAndPushesBothImages(t *testing.T) {
 }
 
 func TestPublisherStopsAfterFirstFailure(t *testing.T) {
-	for _, failAt := range []int{1, 2} {
+	for _, failAt := range []int{1, 2, 3, 4, 5, 6} {
 		runner := &runnerStub{failAt: failAt}
 		publisher := NewDockerPublisher(runner)
 		if err := publisher.Publish(`C:\repo`); err == nil {

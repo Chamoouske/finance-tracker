@@ -41,7 +41,6 @@ func main() {
 	periodHandler := handler.NewPeriodHandler(periodService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
 	balanceHandler := handler.NewBalanceHandler(balanceService)
-	mcpHandler := handler.NewMCPHandler(transactionService, categoryService, summaryService, balanceService)
 
 	mux := http.NewServeMux()
 
@@ -60,7 +59,6 @@ func main() {
 
 	mux.HandleFunc("GET /api/summary", summaryHandler.Get)
 	mux.HandleFunc("GET /api/balance", balanceHandler.GetBalance)
-	mux.Handle("POST /mcp", mcpHandler)
 
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
